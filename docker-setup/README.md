@@ -393,6 +393,115 @@ For multiple employees, you can use:
 
 ---
 
+## Development and Customization
+
+### Accessing App Files for Code/UI Modification
+
+You can copy Frappe apps from the Docker container to your local machine for development, customization, or code inspection.
+
+#### Copy Apps from Container
+
+```bash
+# Copy all apps to local directory
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/. ./apps/
+
+# Copy specific app (e.g., ERPNext only)
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/erpnext/. ./erpnext/
+
+# Copy HRMS app only
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/hrms/. ./hrms/
+```
+
+#### What You Can Modify
+
+**UI Customizations:**
+- HTML templates in `apps/[app_name]/[app_name]/templates/`
+- CSS files in `apps/[app_name]/[app_name]/public/css/`
+- JavaScript files in `apps/[app_name]/[app_name]/public/js/`
+- Page layouts and views
+
+**Code Customizations:**
+- Python models in `apps/[app_name]/[app_name]/doctype/`
+- API endpoints in `apps/[app_name]/[app_name]/api/`
+- Business logic in `apps/[app_name]/[app_name]/hooks.py`
+- Reports and custom scripts
+
+#### Development Workflow
+
+1. **Copy apps to local:**
+```bash
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/. ./apps/
+```
+
+2. **Make changes locally** using your preferred code editor
+
+3. **Copy modified files back to container:**
+```bash
+# Copy all changes back
+docker cp ./apps/. $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/
+
+# Or copy specific app changes
+docker cp ./apps/erpnext/. $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/erpnext/
+```
+
+4. **Restart container to apply changes:**
+```bash
+docker compose -f pwd-with-apps.yml restart backend
+```
+
+#### Common Customization Examples
+
+**Change Login Page Logo:**
+```bash
+# Copy custom logo
+docker cp ./custom-logo.png $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/frappe/frappe/public/images/frappe-logo.svg
+```
+
+**Modify CSS Styling:**
+```bash
+# Edit CSS file locally
+./apps/frappe/frappe/public/css/frappe-web.css
+
+# Copy back changes
+docker cp ./apps/frappe/frappe/public/css/frappe-web.css $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/frappe/frappe/public/css/
+```
+
+**Add Custom JavaScript:**
+```bash
+# Create custom JS file
+echo "// Custom JavaScript" > ./apps/custom_app/custom_app/public/js/custom.js
+
+# Copy to container
+docker cp ./apps/custom_app/custom_app/public/js/custom.js $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/custom_app/custom_app/public/js/
+```
+
+#### Important Notes
+
+- **Backup First**: Always backup original files before modifying
+- **Container Restart**: Some changes require container restart to take effect
+- **Database Changes**: Database schema changes need bench migrate command
+- **Version Compatibility**: Ensure customizations work with Frappe version updates
+- **Testing**: Test changes in development environment before production
+
+#### Advanced Development
+
+**Access Container Shell for Development:**
+```bash
+docker compose -f pwd-with-apps.yml exec backend bash
+cd /home/frappe/frappe-bench
+# Use bench commands for advanced operations
+bench --site frontend migrate
+bench --site frontend reinstall-app [app_name]
+```
+
+**Real-time File Sync (Advanced):**
+```bash
+# Install docker-sync for automatic file syncing
+# This allows live editing without manual copy/paste
+```
+
+---
+
 ## Mobile Support
 
 ### Frappe HR Mobile Version
