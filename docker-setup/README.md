@@ -168,6 +168,63 @@ Suggested sections inside those files:
 
 ---
 
+## Production Configuration
+
+### Database Configuration
+
+For production deployments, modify the database settings in `pwd-with-apps.yml`:
+
+```yaml
+services:
+  db:
+    environment:
+      - MYSQL_ROOT_PASSWORD=your_secure_root_password
+      - MYSQL_USER=erpnext
+      - MYSQL_PASSWORD=your_secure_user_password
+      - MYSQL_DATABASE=erpnext
+```
+
+**Important:** Replace the default passwords with secure values before deploying to production.
+
+### Environment Variables
+
+Edit the following in `pwd-with-apps.yml` for production:
+
+```yaml
+services:
+  configurator:
+    environment:
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_ROOT_USER=root
+      - DB_ROOT_PASSWORD=your_secure_root_password
+      - DB_NAME=erpnext
+      - DB_USER=erpnext
+      - DB_PASSWORD=your_secure_user_password
+      - ADMIN_PASSWORD=your_admin_password
+```
+
+### Security Considerations
+
+- **Change all default passwords** before production deployment
+- **Use strong passwords** with at least 12 characters including uppercase, lowercase, numbers, and symbols
+- **Consider using Docker secrets** for sensitive data in production
+- **Update ADMIN_PASSWORD** for the default Administrator user
+- **Configure SSL/HTTPS** for production deployments
+- **Set up proper backups** for database and file storage
+
+### Business Logic Configuration
+
+After deployment, configure business-specific settings in the ERPNext UI:
+
+1. **Company Settings**: Setup your company details, fiscal year, and currency
+2. **User Management**: Create user accounts with appropriate roles
+3. **Email Settings**: Configure SMTP for email notifications
+4. **Backup Settings**: Set up automated backup schedules
+5. **Custom Fields**: Add business-specific fields to documents as needed
+
+---
+
 ## Useful commands
 
 ```bash
