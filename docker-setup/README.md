@@ -393,6 +393,217 @@ For multiple employees, you can use:
 
 ---
 
+## Development Setup
+
+### Container Architecture for Customization
+
+This Docker setup is designed for seamless development and customization:
+
+**Apps Volume Mounting:**
+- The `apps` folder is mounted to the backend container at `/home/frappe/frappe-bench/apps/`
+- This allows real-time code editing and customizations
+- Changes made to app files are immediately available in the container
+
+**Development Workflow:**
+```bash
+# Copy apps to local for editing
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/. ./apps/
+
+# Edit files locally with your preferred IDE
+# Changes can be copied back to container
+docker cp ./apps/. $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/
+```
+
+**Contribution Ready:**
+- All Frappe apps are accessible for customization
+- Custom apps can be added to the `apps.json` configuration
+- Development environment mirrors production setup
+
+---
+
+## Access Links
+
+### Application URLs
+
+**Desktop Interface (Full ERP):**
+- **URL**: http://localhost:8080
+- **Access**: Complete ERPNext, HRMS, and Insights modules
+- **Best for**: Administrative tasks, configuration, full-featured work
+
+**Mobile Portal (HR Focus):**
+- **URL**: http://localhost:8080/hrms
+- **Access**: Mobile-optimized HR interface
+- **Best for**: Employee self-service, attendance, leave requests
+
+**Network Access:**
+- **URL**: http://xxx.xxx.xx.xxx:8080 (replace with your server IP)
+- **Mobile HR**: http://xxx.xxx.xx.xxx:8080/hrms
+
+---
+
+## Cheat Sheet
+
+### Essential Docker & Bench Commands
+
+#### Container Management
+```bash
+# Start all services
+docker compose -f pwd-with-apps.yml up -d
+
+# Stop all services
+docker compose -f pwd-with-apps.yml down
+
+# View container status
+docker compose -f pwd-with-apps.yml ps
+
+# View logs
+docker compose -f pwd-with-apps.yml logs -f
+
+# Access backend container shell
+docker compose -f pwd-with-apps.yml exec backend bash
+```
+
+#### Bench Commands (Inside Container)
+```bash
+# Database migration (after updates)
+bench --site frontend migrate
+
+# Database backup
+bench --site frontend backup
+
+# Database restore
+bench --site frontend restore [backup_file]
+
+# Health check
+bench --site frontend doctor
+
+# List installed apps
+bench --site frontend list-apps
+
+# Build assets (after UI changes)
+bench build
+
+# Create new site
+bench new-site [site_name]
+
+# Install app
+bench --site frontend install-app [app_name]
+
+# Reset admin password
+bench --site frontend set-admin-password [new_password]
+```
+
+#### Development Commands
+```bash
+# Switch to branch
+bench switch-to-branch [branch_name] [app_name]
+
+# Update apps
+bench update --patch
+
+# Restart services
+bench restart
+
+# Clear cache
+bench --site frontend clear-cache
+```
+
+---
+
+## Best Practices
+
+### Data Safety During Operations
+
+**Version Upgrade Workflow:**
+1. **Backup** → Always backup before any changes
+   ```bash
+   bench --site frontend backup
+   ```
+
+2. **Pull** → Update app versions in apps.json, then pull
+   ```bash
+   ./setup.sh
+   ```
+
+3. **Migrate** → Run database migrations
+   ```bash
+   bench --site frontend migrate
+   ```
+
+**Development Safety:**
+- Test customizations in development environment first
+- Keep backups of custom code before updates
+- Use version control for custom apps
+- Document all custom modifications
+
+**Production Guidelines:**
+- Regular automated backups
+- Monitor system performance
+- Keep security patches updated
+- Test updates in staging environment
+
+**Resource Management:**
+- Monitor Docker container resource usage
+- Clean up unused Docker images periodically
+- Keep adequate disk space for backups
+- Monitor database size and performance
+
+---
+
+## Quick Upgrade (Data Safe)
+
+### Upgrade Version Without Losing Data - 5 Minute Guide
+
+**Step 1: Backup Data**
+```bash
+# Backup database
+docker compose -f pwd-with-apps.yml exec backend bash
+cd /home/frappe/frappe-bench
+bench --site frontend backup
+exit
+```
+
+**Step 2: Update apps.json**
+```json
+{
+  "apps": [
+    {
+      "url": "https://github.com/frappe/erpnext",
+      "branch": "version-15"  // Update to newer version
+    },
+    {
+      "url": "https://github.com/frappe/hrms", 
+      "branch": "version-15"  // Update to newer version
+    }
+  ]
+}
+```
+
+**Step 3: Run Update**
+```bash
+# Stop containers (data preserved in volumes)
+docker compose -f pwd-with-apps.yml down
+
+# Update with data preservation
+./setup.sh
+
+# Start with existing data
+docker compose -f pwd-with-apps.yml up -d
+```
+
+**Step 4: Verify**
+```bash
+# Check data integrity
+docker compose -f pwd-with-apps.yml exec backend bash
+bench --site frontend migrate
+bench --site frontend doctor
+exit
+```
+
+🔒 **Your data is safe** - Docker volumes preserve all database and file data during upgrades.
+
+---
+
 ## Version Update Guide
 
 ### Updating Frappe, ERPNext, HRMS, and Insights
