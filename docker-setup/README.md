@@ -295,6 +295,155 @@ docker compose -f pwd-with-apps.yml restart
 
 ---
 
+## User and Employee Account Setup
+
+### Creating User Accounts and Binding with Employee Records
+
+To allow users to login to the HR mobile app and web interface, you need to create user accounts and bind them to employee records.
+
+#### Step 1: Create User Account
+
+1. **Login as Administrator** to ERPNext
+2. Go to **System > User > User** or navigate to `/app/user`
+3. Click **"Add User"** and fill in:
+   - **Email**: User's email address (this will be the login username)
+   - **First Name** and **Last Name**
+   - **Enabled**: Check this box
+   - **Send Password**: Check to email password to user
+   - **Role**: Select appropriate role (usually "Employee" for HR access)
+
+#### Step 2: Create Employee Record
+
+1. Go to **HR > Employee > Employee** or navigate to `/app/employee`
+2. Click **"Add Employee"** and fill in:
+   - **First Name**, **Last Name**
+   - **Employee ID**: Unique identifier
+   - **Company**: Select your company
+   - **Department**: Select department
+   - **Designation**: Job title
+   - **Date of Joining**: Employment start date
+   - **Email**: Same email as user account
+   - **Phone**: Contact number
+
+#### Step 3: Bind User to Employee
+
+**Method A: From Employee Record**
+
+1. Open the Employee record you created
+2. In the **"User"** field, select the user account you created
+3. Save the Employee record
+
+**Method B: From User Record**
+
+1. Open the User record
+2. Go to the **"Employee"** tab
+3. Link to the existing Employee record
+4. Save the User record
+
+#### Step 4: Set Password and Enable Login
+
+1. Open the User record
+2. Scroll to **"Password"** section
+3. Set a secure password or use "Send Password" to email reset link
+4. Ensure **"Enabled"** checkbox is checked
+5. Save the record
+
+#### Step 5: Test Login
+
+1. **Web Access**: Go to http://xxx.xxx.xx.xxx:8080
+2. **Mobile HR Access**: Go to http://xxx.xxx.xx.xxx:8080/hrms/home
+3. Login with:
+   - **Username**: User's email address
+   - **Password**: The password you set
+
+#### Bulk User Creation
+
+For multiple employees, you can use:
+
+**Data Import Method**:
+1. Go to **Data Import** in ERPNext
+2. Select **"User"** doctype
+3. Upload CSV with user details
+4. Repeat for **"Employee"** doctype
+5. Use **"Link Existing"** option to bind users to employees
+
+#### Important Notes
+
+- **Email Matching**: User email and Employee email must match exactly
+- **Unique Emails**: Each user must have a unique email address
+- **Role Permissions**: Assign appropriate roles based on job responsibilities
+- **Password Policy**: Enforce strong passwords for security
+- **Mobile Access**: Once bound, users can immediately access HR mobile features
+
+#### Common Issues
+
+**"Invalid Login" Error**:
+- Check if user account is enabled
+- Verify password is correct
+- Ensure user is bound to employee record
+
+**"Access Denied" on Mobile**:
+- Verify user has "Employee" role
+- Check if user is linked to active employee record
+- Ensure employee status is "Active"
+
+**Missing HR Modules**:
+- Go to **Role Permission Manager**
+- Ensure Employee role has access to HR modules
+
+---
+
+## Mobile Support
+
+### Frappe HR Mobile Version
+
+Frappe HR includes a fully responsive mobile interface that works seamlessly on smartphones and tablets. When accessing the HR module from mobile devices, users get an optimized experience with:
+
+#### Mobile Features
+
+**Check-In/Check-Out**
+- One-touch attendance marking
+- GPS-enabled location tracking (if configured)
+- Real-time attendance status
+
+**Quick Actions**
+- Request attendance with single tap
+- Request shift changes
+- Apply for leave with mobile-optimized forms
+
+**Navigation**
+- Bottom navigation bar for easy thumb access
+- Home, Attendance, Leaves, Expenses, and Salary sections
+- Swipe gestures for enhanced usability
+
+**Responsive Design**
+- Automatic layout adjustment for screen size
+- Touch-friendly buttons and forms
+- Progressive Web App (PWA) support for app-like experience
+
+#### Mobile Access
+
+1. **URL**: http://xxx.xxx.xx.xxx:8080/hrms/home (replace with your IP)
+2. **Browser**: Any modern mobile browser (Chrome, Safari, Firefox)
+3. **Login**: Same credentials as desktop (Administrator/admin or employee accounts)
+
+#### Mobile App Features
+
+- **Home Dashboard**: Quick overview of attendance, leaves, and notifications
+- **Attendance Management**: Check-in/out, view attendance history
+- **Leave Requests**: Apply for leave, check leave balance, view status
+- **Expense Claims**: Submit expenses, upload receipts, track approvals
+- **Salary Slips**: View payslips and salary breakdown
+
+#### Benefits
+
+- **No Separate App Needed**: Works directly in mobile browser
+- **Offline Capability**: Basic functions work without internet (PWA)
+- **Push Notifications**: Receive alerts for leave approvals, attendance reminders
+- **Cross-Platform**: Works on iOS, Android, and tablet devices
+
+---
+
 ## Applications Overview
 
 | Application | Description |
