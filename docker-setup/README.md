@@ -947,6 +947,835 @@ bench --site frontend reinstall-app [app_name]
 
 ---
 
+## AI Integration with Frappe Insights
+
+### Natural Language Querying with Cost-Effective AI
+
+This guide shows how to integrate AI for natural language querying in Frappe Insights with cost optimization and secure API key management.
+
+### 1. Cost-Effective OpenAI Setup
+
+#### Free Credits & Cost Optimization
+
+**Get Started with Free Credits:**
+1. **OpenAI Free Trial**: Sign up at https://platform.openai.com to get $5-18 in free credits
+2. **Usage Monitoring**: Track usage to stay within free tier
+3. **Model Selection**: Use cost-effective models
+
+**Cost-Effective Model Choices:**
+```python
+# From most expensive to most affordable
+MODEL_COSTS = {
+    "gpt-4": "$0.03/1K tokens (input), $0.06/1K tokens (output)",
+    "gpt-4-turbo": "$0.01/1K tokens (input), $0.03/1K tokens (output)", 
+    "gpt-3.5-turbo": "$0.001/1K tokens (input), $0.002/1K tokens (output)"  # Most cost-effective
+}
+```
+
+#### Secure API Key Configuration
+
+**Method A: Environment Variables (Recommended)**
+```yaml
+# Add to pwd-with-apps.yml
+services:
+  backend:
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=gpt-3.5-turbo  # Cost-effective default
+```
+
+**Method B: Frappe Site Config**
+```python
+# Access via Frappe configuration
+import frappe
+
+def get_openai_config():
+    return {
+        'api_key': frappe.conf.get('openai_api_key'),
+        'model': frappe.conf.get('openai_model', 'gpt-3.5-turbo'),
+        'max_tokens': int(frappe.conf.get('openai_max_tokens', 500))
+    }
+```
+
+**Set Site Config Securely:**
+```bash
+# Access container
+docker compose -f pwd-with-apps.yml exec backend bash
+
+# Set in site config
+cd /home/frappe/frappe-bench
+bench --site frontend set-config -g openai_api_key "your-key-here"
+bench --site frontend set-config -g openai_model "gpt-3.5-turbo"
+bench --site frontend set-config -g openai_max_tokens "500"
+```
+
+### 2. Natural Language Query Implementation
+
+#### Cost-Optimized Query Handler
+
+```python
+# custom_ai_app/custom_ai_app/api.py
+import frappe
+import openai
+import json
+
+class CostOptimizedAI:
+    def __init__(self):
+        self.config = self.get_secure_config()
+        self.cache = {}
+    
+    def get_secure_config(self):
+        """Get API key from secure configuration"""
+        api_key = frappe.conf.get('openai_api_key') or os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            frappe.throw("OpenAI API key not configured")
+        
+        return {
+            'api_key': api_key,
+            'model': frappe.conf.get('openai_model', 'gpt-3.5-turbo'),
+            'max_tokens': int(frappe.conf.get('openai_max_tokens', 500))
+        }
+    
+    def natural_language_to_sql(self, question, schema_info):
+        """Convert natural language to SQL with cost optimization"""
+        cache_key = f"nl_sql:{hash(question + schema_info)}"
+        
+        # Check cache to avoid API calls
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        # Cost-optimized prompt
+        prompt = f"""
+        Convert this question to SQL for Frappe ERPNext:
+        Question: {question}
+        
+        Available tables: {schema_info}
+        
+        Return only the SQL query without explanation.
+        Use LIMIT 100 to reduce data transfer costs.
+        """
+        
+        try:
+            response = openai.ChatCompletion.create(
+                model=self.config['model'],
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=self.config['max_tokens'],
+                temperature=0  # Deterministic for SQL
+            )
+            
+            sql_query = response.choices[0].message.content.strip()
+            
+            # Cache the result
+            self.cache[cache_key] = sql_query
+            
+            # Log usage for cost tracking
+            self.log_api_usage('nl_to_sql', response.usage)
+            
+            return sql_query
+            
+        except Exception as e:
+            frappe.log_error(f"AI Query Failed: {str(e)}")
+            return None
+    
+    def log_api_usage(self, operation, usage):
+        """Track API usage for cost monitoring"""
+        log_entry = frappe.get_doc({
+            'doctype': 'AI Usage Log',
+            'operation': operation,
+            'model': self.config['model'],
+            'prompt_tokens': usage.prompt_tokens,
+            'completion_tokens': usage.completion_tokens,
+            'total_tokens': usage.total_tokens,
+            'estimated_cost': self.calculate_cost(usage),
+            'timestamp': frappe.utils.now()
+        })
+        log_entry.insert(ignore_permissions=True)
+    
+    def calculate_cost(self, usage):
+        """Calculate estimated cost in USD"""
+        model = self.config['model']
+        if model == 'gpt-3.5-turbo':
+            return (usage.prompt_tokens * 0.001 + usage.completion_tokens * 0.002) / 1000
+        elif model == 'gpt-4':
+            return (usage.prompt_tokens * 0.03 + usage.completion_tokens * 0.06) / 1000
+        return 0
+
+@frappe.whitelist()
+def query_with_natural_language(question):
+    """API endpoint for natural language querying"""
+    ai = CostOptimizedAI()
+    
+    # Get database schema (cached)
+    schema = get_cached_schema()
+    
+    # Convert to SQL
+    sql_query = ai.natural_language_to_sql(question, schema)
+    
+    if not sql_query:
+        return {'error': 'Failed to generate query'}
+    
+    # Execute query safely
+    try:
+        result = frappe.db.sql(sql_query, as_dict=True)
+        return {
+            'query': sql_query,
+            'data': result[:50],  # Limit results for cost savings
+            'count': len(result)
+        }
+    except Exception as e:
+        return {'error': f'Query execution failed: {str(e)}'}
+```
+
+### 3. Free Local Alternative: Ollama
+
+#### Setup Ollama Container
+
+**Add to pwd-with-apps.yml:**
+```yaml
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  ollama_data:
+```
+
+#### Install Free Models
+
+```bash
+# Start Ollama container
+docker compose -f pwd-with-apps.yml up -d ollama
+
+# Install free models (in Ollama container)
+docker compose -f pwd-with-apps.yml exec ollama ollama pull llama2
+docker compose -f pwd-with-apps.yml exec ollama ollama pull codellama
+docker compose -f pwd-with-apps.yml exec ollama ollama pull mistral
+```
+
+#### Ollama Integration (Free Alternative)
+
+```python
+# Free local AI using Ollama
+import requests
+import frappe
+
+class OllamaAI:
+    def __init__(self):
+        self.base_url = "http://ollama:11434"
+        self.model = frappe.conf.get('ollama_model', 'mistral')  # Free model
+    
+    def natural_language_to_sql(self, question, schema_info):
+        """Convert natural language to SQL using free local model"""
+        prompt = f"""
+        Convert this question to SQL for Frappe ERPNext:
+        Question: {question}
+        Available tables: {schema_info}
+        
+        Return only the SQL query without explanation.
+        """
+        
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                return response.json()['response'].strip()
+            
+        except Exception as e:
+            frappe.log_error(f"Ollama Query Failed: {str(e)}")
+        
+        return None
+
+@frappe.whitelist()
+def query_with_local_ai(question):
+    """API endpoint for local AI querying"""
+    ai = OllamaAI()
+    
+    schema = get_cached_schema()
+    sql_query = ai.natural_language_to_sql(question, schema)
+    
+    if not sql_query:
+        return {'error': 'Failed to generate query'}
+    
+    try:
+        result = frappe.db.sql(sql_query, as_dict=True)
+        return {
+            'query': sql_query,
+            'data': result[:50],
+            'count': len(result)
+        }
+    except Exception as e:
+        return {'error': f'Query execution failed: {str(e)}'}
+```
+
+### 4. Hybrid Approach (Cost Optimization)
+
+```python
+class HybridAI:
+    def __init__(self):
+        self.ollama = OllamaAI()
+        self.openai = CostOptimizedAI()
+        self.use_free_first = frappe.conf.get('ai_use_free_first', True)
+    
+    def natural_language_to_sql(self, question, schema_info):
+        """Try free local AI first, fallback to OpenAI if needed"""
+        
+        if self.use_free_first:
+            # Try free local AI first
+            result = self.ollama.natural_language_to_sql(question, schema_info)
+            if result and self.validate_sql(result):
+                return result
+        
+        # Fallback to OpenAI for better accuracy
+        return self.openai.natural_language_to_sql(question, schema_info)
+    
+    def validate_sql(self, sql_query):
+        """Basic SQL validation"""
+        dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER']
+        sql_upper = sql_query.upper()
+        
+        return not any(keyword in sql_upper for keyword in dangerous_keywords)
+```
+
+### 5. Frontend Integration
+
+```javascript
+// Add to Insights dashboard
+class NaturalLanguageQuery {
+    constructor() {
+        this.setupUI();
+    }
+    
+    setupUI() {
+        const queryBox = `
+            <div class="nl-query-container">
+                <h4>🤖 Ask in Natural Language</h4>
+                <input type="text" id="nl-question" placeholder="e.g., Show me top 10 customers by sales">
+                <button onclick="executeNLQuery()">Generate Query</button>
+                <div id="nl-results"></div>
+            </div>
+        `;
+        
+        document.querySelector('.dashboard-actions').insertAdjacentHTML('beforeend', queryBox);
+    }
+    
+    async executeNLQuery() {
+        const question = document.getElementById('nl-question').value;
+        if (!question) return;
+        
+        try {
+            const response = await frappe.call({
+                method: 'custom_ai_app.api.query_with_natural_language',
+                args: { question }
+            });
+            
+            this.displayResults(response.message);
+        } catch (error) {
+            frappe.msgprint('Query failed: ' + error.message);
+        }
+    }
+    
+    displayResults(result) {
+        const container = document.getElementById('nl-results');
+        
+        if (result.error) {
+            container.innerHTML = `<div class="alert alert-danger">${result.error}</div>`;
+            return;
+        }
+        
+        container.innerHTML = `
+            <div class="nl-query-result">
+                <h5>Generated SQL:</h5>
+                <code>${result.query}</code>
+                <h5>Results (${result.count} rows):</h5>
+                <div class="table-responsive">
+                    ${this.format_table(result.data)}
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Initialize when dashboard loads
+$(document).ready(() => {
+    new NaturalLanguageQuery();
+});
+```
+
+### 6. Setup Instructions
+
+#### Step 1: Configure API Keys
+```bash
+# Option A: Environment variables
+export OPENAI_API_KEY="your-key-here"
+
+# Option B: Site config
+docker compose -f pwd-with-apps.yml exec backend bash
+bench --site frontend set-config -g openai_api_key "your-key-here"
+```
+
+#### Step 2: Create Custom AI App
+```bash
+docker compose -f pwd-with-apps.yml exec backend bash
+cd /home/frappe/frappe-bench
+bench new-app custom_ai_app
+bench --site frontend install-app custom_ai_app
+```
+
+#### Step 3: Add to apps.json
+```json
+{
+  "url": "https://github.com/frappe/insights",
+  "branch": "version-15"
+},
+{
+  "url": "./custom_ai_app",
+  "branch": "main"
+}
+```
+
+#### Step 4: Restart Services
+```bash
+docker compose -f pwd-with-apps.yml down
+./setup.sh
+docker compose -f pwd-with-apps.yml up -d
+```
+
+### 7. Cost Monitoring Dashboard
+
+```python
+@frappe.whitelist()
+def get_ai_usage_stats():
+    """Get AI usage statistics for cost monitoring"""
+    data = frappe.db.sql("""
+        SELECT 
+            DATE(timestamp) as date,
+            SUM(total_tokens) as tokens,
+            SUM(estimated_cost) as cost,
+            COUNT(*) as calls
+        FROM `tabAI Usage Log`
+        WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        GROUP BY DATE(timestamp)
+        ORDER BY date DESC
+    """, as_dict=True)
+    
+    return {
+        'data': data,
+        'total_cost': sum(row.cost for row in data),
+        'total_tokens': sum(row.tokens for row in data)
+    }
+```
+
+### Important Notes
+
+- **Free Credits**: OpenAI provides $5-18 free credits for new accounts
+- **Local Models**: Ollama models are completely free but require more RAM
+- **Cost Tracking**: Monitor usage to avoid unexpected charges
+- **Security**: Never commit API keys to version control
+- **Rate Limits**: Implement caching to reduce API calls
+- **Model Selection**: Use gpt-3.5-turbo for cost-effective operations
+
+---
+
+## AI Integration with Frappe Insights
+
+### Natural Language Querying with AI
+
+This guide shows how to integrate AI models with Frappe Insights to enable natural language querying capabilities.
+
+### Choose Your AI Approach
+
+#### Option A: Cost-Effective Hybrid (Recommended)
+- Use **Ollama** (free local AI) for most queries
+- Use **OpenAI** only when higher accuracy is needed
+
+#### Option B: OpenAI Only
+- Simpler setup but involves costs
+- Better accuracy for complex queries
+
+### Step 1: Setup Ollama (Free Local AI)
+
+Add Ollama service to your `docker-setup/pwd-with-apps.yml`:
+
+```yaml
+services:
+  # ... existing services ...
+  
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - frappe_network
+    deploy:
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  # ... existing volumes ...
+  ollama_data:
+```
+
+Install free AI models:
+
+```bash
+# Start containers
+docker compose -f docker-setup/pwd-with-apps.yml up -d
+
+# Install free models
+docker compose -f docker-setup/pwd-with-apps.yml exec ollama ollama pull mistral
+docker compose -f docker-setup/pwd-with-apps.yml exec ollama ollama pull codellama
+```
+
+### Step 2: Configure OpenAI (Optional)
+
+Get your API key from https://platform.openai.com and configure it securely:
+
+```bash
+# Access backend container
+docker compose -f docker-setup/pwd-with-apps.yml exec backend bash
+
+# Securely set OpenAI API key
+bench --site frontend set-config -g openai_api_key "your-api-key-here"
+bench --site frontend set-config -g openai_model "gpt-3.5-turbo"
+bench --site frontend set-config -g openai_max_tokens "500"
+```
+
+### Step 3: Create Custom AI App
+
+```bash
+# Access container and create custom app
+docker compose -f docker-setup/pwd-with-apps.yml exec backend bash
+cd /home/frappe/frappe-bench
+bench new-app insights_ai
+
+# Install the app
+bench --site frontend install-app insights_ai
+```
+
+### Step 4: AI Integration Code
+
+Create the AI integration files in your new app:
+
+**AI Configuration (`insights_ai/insights_ai/ai_config.py`):**
+```python
+import frappe
+import os
+
+class AIConfig:
+    @staticmethod
+    def get_openai_config():
+        """Get OpenAI configuration"""
+        api_key = frappe.conf.get('openai_api_key')
+        if not api_key:
+            return None
+        return {
+            'api_key': api_key,
+            'model': frappe.conf.get('openai_model', 'gpt-3.5-turbo'),
+            'max_tokens': int(frappe.conf.get('openai_max_tokens', 500))
+        }
+    
+    @staticmethod
+    def get_ollama_config():
+        """Get Ollama configuration"""
+        return {
+            'base_url': 'http://ollama:11434',
+            'model': 'mistral',
+            'timeout': 30
+        }
+```
+
+**Natural Language API (`insights_ai/insights_ai/api.py`):**
+```python
+import frappe
+import requests
+from .ai_config import AIConfig
+
+@frappe.whitelist()
+def natural_language_to_sql(question):
+    """Convert natural language to SQL using AI"""
+    
+    # Try Ollama first (free)
+    ollama_result = query_ollama(question)
+    if ollama_result:
+        return {'sql': ollama_result, 'source': 'Ollama (Free)'}
+    
+    # Fallback to OpenAI if available
+    openai_result = query_openai(question)
+    if openai_result:
+        return {'sql': openai_result, 'source': 'OpenAI'}
+    
+    return {'error': 'AI services unavailable'}
+
+def query_ollama(question):
+    """Query Ollama for SQL generation"""
+    try:
+        config = AIConfig.get_ollama_config()
+        
+        prompt = f"""
+        Convert this question to SQL for Frappe ERPNext:
+        Question: {question}
+        
+        Available tables: Sales Invoice, Purchase Order, Customer, Supplier, Item
+        Return only the SQL query without explanation.
+        """
+        
+        response = requests.post(
+            f"{config['base_url']}/api/generate",
+            json={
+                "model": config['model'],
+                "prompt": prompt,
+                "stream": False
+            },
+            timeout=config['timeout']
+        )
+        
+        if response.status_code == 200:
+            return response.json()['response'].strip()
+            
+    except Exception as e:
+        frappe.log_error(f"Ollama query failed: {str(e)}")
+    
+    return None
+
+def query_openai(question):
+    """Query OpenAI for SQL generation"""
+    try:
+        config = AIConfig.get_openai_config()
+        if not config:
+            return None
+            
+        import openai
+        client = openai.OpenAI(api_key=config['api_key'])
+        
+        response = client.chat.completions.create(
+            model=config['model'],
+            messages=[{
+                "role": "user",
+                "content": f"""
+                Convert this question to SQL for Frappe ERPNext:
+                Question: {question}
+                
+                Available tables: Sales Invoice, Purchase Order, Customer, Supplier, Item
+                Return only the SQL query without explanation.
+                """
+            }],
+            max_tokens=config['max_tokens'],
+            temperature=0
+        )
+        
+        return response.choices[0].message.content.strip()
+        
+    except Exception as e:
+        frappe.log_error(f"OpenAI query failed: {str(e)}")
+    
+    return None
+
+@frappe.whitelist()
+def execute_ai_query(question):
+    """Execute AI-generated query and return results"""
+    # Convert to SQL
+    sql_result = natural_language_to_sql(question)
+    
+    if 'error' in sql_result:
+        return sql_result
+    
+    # Execute query safely
+    try:
+        # Basic SQL validation
+        sql = sql_result['sql']
+        dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER']
+        
+        if any(keyword.upper() in sql.upper() for keyword in dangerous_keywords):
+            return {'error': 'Unsafe query detected'}
+        
+        # Execute query
+        data = frappe.db.sql(sql, as_dict=True)
+        
+        return {
+            'sql': sql,
+            'data': data[:100],  # Limit results
+            'count': len(data),
+            'source': sql_result['source']
+        }
+        
+    except Exception as e:
+        return {'error': f'Query execution failed: {str(e)}'}
+```
+
+### Step 5: Frontend Integration
+
+Add JavaScript to your Insights dashboard:
+
+```javascript
+// Add to Insights dashboard
+class AINaturalLanguageQuery {
+    constructor() {
+        this.setupUI();
+    }
+    
+    setupUI() {
+        const queryBox = `
+            <div class="nl-query-container" style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h4>🤖 Ask in Natural Language</h4>
+                <div class="form-group">
+                    <input type="text" id="nl-question" class="form-control" 
+                           placeholder="e.g., Show me top 10 customers by sales">
+                </div>
+                <button class="btn btn-primary" onclick="executeAIQuery()">Generate & Execute Query</button>
+                <div id="ai-results" style="margin-top: 15px;"></div>
+            </div>
+        `;
+        
+        // Add to dashboard
+        $('.dashboard-content').prepend(queryBox);
+    }
+}
+
+// Initialize when page loads
+$(document).ready(() => {
+    new AINaturalLanguageQuery();
+});
+
+function executeAIQuery() {
+    const question = document.getElementById('nl-question').value;
+    if (!question) {
+        frappe.msgprint('Please enter a question');
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('ai-results').innerHTML = '<div class="alert alert-info">Processing your query...</div>';
+    
+    frappe.call({
+        method: 'insights_ai.api.execute_ai_query',
+        args: { question },
+        callback: function(r) {
+            displayResults(r.message);
+        }
+    });
+}
+
+function displayResults(result) {
+    const container = document.getElementById('ai-results');
+    
+    if (result.error) {
+        container.innerHTML = `<div class="alert alert-danger">${result.error}</div>`;
+        return;
+    }
+    
+    let html = `
+        <div class="ai-query-result">
+            <h5>Generated SQL (${result.source}):</h5>
+            <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">${result.sql}</pre>
+            <h5>Results (${result.count} rows):</h5>
+    `;
+    
+    if (result.data && result.data.length > 0) {
+        html += '<div class="table-responsive"><table class="table table-bordered">';
+        
+        // Headers
+        const headers = Object.keys(result.data[0]);
+        html += '<thead><tr>';
+        headers.forEach(header => {
+            html += `<th>${header}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+        
+        // Data rows
+        result.data.slice(0, 20).forEach(row => {
+            html += '<tr>';
+            headers.forEach(header => {
+                html += `<td>${row[header] || ''}</td>`;
+            });
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div>';
+        
+        if (result.count > 20) {
+            html += `<p class="text-muted">Showing first 20 of ${result.count} results</p>`;
+        }
+    } else {
+        html += '<p>No results found</p>';
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+```
+
+### Step 6: Update App Configuration
+
+Add your AI app to `apps.json`:
+
+```json
+{
+  "apps": [
+    {
+      "url": "https://github.com/frappe/erpnext",
+      "branch": "version-15"
+    },
+    {
+      "url": "https://github.com/frappe/hrms", 
+      "branch": "version-15"
+    },
+    {
+      "url": "https://github.com/frappe/insights",
+      "branch": "version-15"
+    },
+    {
+      "url": "./insights_ai",
+      "branch": "main"
+    }
+  ]
+}
+```
+
+### Step 7: Restart and Test
+
+```bash
+# Restart services
+docker compose -f docker-setup/pwd-with-apps.yml down
+./setup.sh
+docker compose -f docker-setup/pwd-with-apps.yml up -d
+```
+
+### Usage Examples
+
+Try these natural language queries:
+- "Show me top 10 customers by sales"
+- "What are my total sales this month?"
+- "List all pending purchase orders"
+- "Show me items with low stock"
+
+### Important Notes
+
+- **Cost Management**: Ollama is free, OpenAI costs per token
+- **Security**: SQL validation prevents dangerous queries
+- **Performance**: Results are limited to 100 rows for efficiency
+- **Fallback**: System tries Ollama first, then OpenAI
+
+---
+
 ## Mobile Support
 
 ### Frappe HR Mobile Version
