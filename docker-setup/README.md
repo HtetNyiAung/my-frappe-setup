@@ -151,23 +151,6 @@ After startup completes you can log in at `http://localhost:8080` and explore mo
 
 ---
 
-## Project documentation
-
-Keep high‑level docs for this environment in `notes-and-docs/` at the project root, for example:
-
-- **`architecture.md`**: layout of `frappe-bench`, Docker services, and networks.
-- **`environments.md`**: local vs. future staging/production setups.
-- **`operations.md`**: backup/restore, updating images, and common admin tasks.
-
-Suggested sections inside those files:
-
-- **Setup**: how to install prerequisites and run `./setup.sh`.
-- **Apps & Features**: what ERPNext, HRMS, and Insights are used for in your context.
-- **Customizations**: any custom doctypes, reports, or scripts you add.
-- **Troubleshooting**: copy real errors and their fixes as you encounter them.
-
----
-
 ## Production Configuration
 
 ### Database Configuration
