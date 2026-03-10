@@ -393,6 +393,240 @@ For multiple employees, you can use:
 
 ---
 
+## Version Update Guide
+
+### Updating Frappe, ERPNext, HRMS, and Insights
+
+This guide shows how to update your Frappe setup while preserving your customizations, data, and fixes.
+
+#### Before Updating - Backup Everything
+
+**1. Backup Database:**
+```bash
+# Enter backend container
+docker compose -f pwd-with-apps.yml exec backend bash
+
+# Backup database
+cd /home/frappe/frappe-bench
+bench --site frontend backup
+
+# Exit container
+exit
+```
+
+**2. Backup Apps and Customizations:**
+```bash
+# Copy all apps to local backup
+mkdir -p backup/$(date +%Y%m%d)
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/. ./backup/$(date +%Y%m%d)/apps/
+
+# Copy custom files
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/sites/. ./backup/$(date +%Y%m%d)/sites/
+```
+
+**3. Backup Docker Configuration:**
+```bash
+cp pwd-with-apps.yml ./backup/$(date +%Y%m%d)/
+cp apps.json ./backup/$(date +%Y%m%d)/
+```
+
+#### Update Methods
+
+### Method 1: Safe Update (Recommended)
+
+**1. Update apps.json with new versions:**
+```json
+{
+  "apps": [
+    {
+      "url": "https://github.com/frappe/erpnext",
+      "branch": "version-15"  // Change to latest version
+    },
+    {
+      "url": "https://github.com/frappe/hrms", 
+      "branch": "version-15"  // Change to latest version
+    },
+    {
+      "url": "https://github.com/frappe/insights",
+      "branch": "version-15"  // Change to latest version
+    }
+  ]
+}
+```
+
+**2. Update with data preservation:**
+```bash
+# Stop containers
+docker compose -f pwd-with-apps.yml down
+
+# Pull latest images
+docker compose -f pwd-with-apps.yml pull
+
+# Update with data preservation
+./setup.sh
+
+# Start containers
+docker compose -f pwd-with-apps.yml up -d
+```
+
+### Method 2: Manual Update (Advanced)
+
+**1. Access container and update:**
+```bash
+docker compose -f pwd-with-apps.yml exec backend bash
+cd /home/frappe/frappe-bench
+
+# Update apps
+bench update --patch
+
+# Or update to specific version
+bench switch-to-branch version-15 frappe
+bench switch-to-branch version-15 erpnext
+bench switch-to-branch version-15 hrms
+bench switch-to-branch version-15 insights
+
+# Migrate database
+bench --site frontend migrate
+
+# Build assets
+bench build
+
+exit
+```
+
+#### Preserving Customizations During Update
+
+### 1. Custom App Files
+
+**Before Update:**
+```bash
+# Create custom apps directory
+mkdir -p custom_apps
+
+# Copy your custom modifications
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/custom_app/. ./custom_apps/
+```
+
+**After Update:**
+```bash
+# Copy custom apps back
+docker cp ./custom_apps/. $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/
+
+# Reinstall custom app
+docker compose -f pwd-with-apps.yml exec backend bash
+cd /home/frappe/frappe-bench
+bench --site frontend install-app custom_app
+bench --site frontend migrate
+exit
+```
+
+### 2. UI Customizations
+
+**Backup Custom CSS/JS:**
+```bash
+# Backup custom CSS
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/frappe/frappe/public/css/custom.css ./backup/
+
+# Backup custom JS
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/frappe/frappe/public/js/custom.js ./backup/
+```
+
+**Restore After Update:**
+```bash
+# Restore custom files
+docker cp ./backup/custom.css $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/frappe/frappe/public/css/
+docker cp ./backup/custom.js $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/apps/frappe/frappe/public/js/
+```
+
+### 3. Configuration Files
+
+**Backup Site Config:**
+```bash
+docker cp $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/sites/common_site_config.json ./backup/
+```
+
+**Restore After Update:**
+```bash
+docker cp ./backup/common_site_config.json $(docker ps -qf "name=backend"):/home/frappe/frappe-bench/sites/
+```
+
+#### Post-Update Checklist
+
+### 1. Verify Applications
+```bash
+# Check all apps are working
+docker compose -f pwd-with-apps.yml exec backend bash
+cd /home/frappe/frappe-bench
+bench --site frontend doctor
+
+# Check app versions
+bench --site frontend list-apps
+exit
+```
+
+### 2. Test Key Features
+- [ ] Login works for all users
+- [ ] HR mobile app accessible
+- [ ] ERPNext modules functioning
+- [ ] Reports and dashboards working
+- [ ] Custom features still work
+- [ ] Email notifications working
+
+### 3. Performance Check
+```bash
+# Check container status
+docker compose -f pwd-with-apps.yml ps
+
+# Check logs for errors
+docker compose -f pwd-with-apps.yml logs --tail=50
+```
+
+#### Rollback Plan (If Update Fails)
+
+**1. Quick Rollback:**
+```bash
+# Stop containers
+docker compose -f pwd-with-apps.yml down
+
+# Restore previous configuration
+cp backup/$(date +%Y%m%d)/pwd-with-apps.yml ./
+cp backup/$(date +%Y%m%d)/apps.json ./
+
+# Restore database
+docker compose -f pwd-with-apps.yml up -d db
+# Wait for DB to be ready, then restore from backup file
+```
+
+**2. Complete Rollback:**
+```bash
+# Stop everything
+docker compose -f pwd-with-apps.yml down -v
+
+# Remove all containers and images
+docker system prune -a
+
+# Rebuild from scratch with backup data
+./setup.sh
+```
+
+#### Important Notes
+
+- **Test First**: Always test updates in development environment
+- **Backup Mandatory**: Never update without proper backups
+- **Version Compatibility**: Ensure all apps use compatible versions
+- **Custom Apps**: Custom apps may need updates for new Frappe versions
+- **Database Changes**: Major version updates may require database migration
+- **Performance**: Monitor system performance after updates
+
+#### Update Schedule Recommendations
+
+- **Minor Updates**: Every 2-3 months for security patches
+- **Major Updates**: Every 6-12 months for new features
+- **Custom Apps**: Update custom apps after core updates
+- **Backup Rotation**: Keep backups for at least 30 days
+
+---
+
 ## Development and Customization
 
 ### Accessing App Files for Code/UI Modification
