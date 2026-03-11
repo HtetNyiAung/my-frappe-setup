@@ -92,3 +92,5 @@ dump.rdb
 # Custom apps that might contain sensitive data
 apps/*/config/
 apps/*/secrets/
+
+docker-setup/frappe_docker/
