@@ -56,12 +56,17 @@ docker compose version
 ## Step 2: Clone and Setup
 
 ```bash
-# Clone this repository
+# 1. Clone this repository
 git clone <your-my-frappe-setup-repo-url> my-frappe-setup
 cd my-frappe-setup/docker-setup
 
-# Run setup script
-chmod +x setup.sh
+# 2. Prepare Environment Variables
+# Copy the example file and edit it with your specific IP (192.168.97.105) and ports
+cp .env.example .env
+nano .env  # or use any editor to fill in your passwords and BIND_ADDRESS
+
+# 3. Run setup script
+chmod +x setup.sh logs.sh cleanup.sh backup.sh restore.sh
 ./setup.sh
 ```
 
