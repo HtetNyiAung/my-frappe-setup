@@ -1,94 +1,72 @@
 #!/usr/bin/env bash
-# Frappe ERPNext + HRMS + Insights - Docker Setup Script
-# Run this from the docker-setup directory
-
+# Purpose: Build custom Docker image and initialize the Frappe site
 set -e
+
+# --- 1. Load Environment Variables ---
+if [ -f .env ]; then 
+    export $(grep -v '^#' .env | xargs)
+else 
+    echo "Error: .env file not found. Setup aborted."; exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "=========================================="
-echo "Frappe ERPNext + HRMS + Insights Setup"
+echo "Initializing Project: $STACK_ID"
 echo "=========================================="
 
-# Check Docker is running
+# --- 2. Verify Docker Status ---
 if ! docker info > /dev/null 2>&1; then
-    echo "Error: Docker is not running. Please start Docker Desktop and try again."
-    exit 1
+    echo "Error: Docker is not running. Please start Docker/WSL2."; exit 1
 fi
 
-# Clone frappe_docker if not present
-FRAPPE_DOCKER_DIR="$SCRIPT_DIR/frappe_docker"
-if [ ! -d "$FRAPPE_DOCKER_DIR" ]; then
-    echo ""
-    echo "Cloning frappe_docker repository..."
-    git clone https://github.com/frappe/frappe_docker.git "$FRAPPE_DOCKER_DIR"
+# --- 3. Manage frappe_docker Repository ---
+FRAPPE_PATH="$SCRIPT_DIR/frappe_docker"
+if [ ! -d "$FRAPPE_PATH" ]; then
+    echo "Cloning frappe_docker dependencies..."
+    git clone https://github.com/frappe/frappe_docker.git "$FRAPPE_PATH"
 else
-    echo ""
-    echo "frappe_docker already cloned. Pulling latest..."
-    (cd "$FRAPPE_DOCKER_DIR" && git pull)
+    echo "Updating frappe_docker repository..."
+    (cd "$FRAPPE_PATH" && git pull)
 fi
 
-# Build custom image with ERPNext, HRMS, Insights
-echo ""
-echo "Building custom Docker image (this may take 15-30 minutes)..."
-echo "Apps: ERPNext, HRMS, Insights"
-echo ""
+# --- 4. Build Custom Docker Image ---
+echo "Building Image: $CUSTOM_IMAGE"
+cp "$SCRIPT_DIR/apps.json" "$FRAPPE_PATH/apps.json"
+cd "$FRAPPE_PATH"
 
-# Create apps.json in frappe_docker for build context
-APPS_JSON="$FRAPPE_DOCKER_DIR/apps.json"
-cp "$SCRIPT_DIR/apps.json" "$APPS_JSON"
+# Encode apps.json to Base64 for the Docker build context
+APPS_JSON_BASE64=$(base64 -w 0 apps.json 2>/dev/null || base64 apps.json | tr -d '\n')
 
-# Build - must run from frappe_docker root (needs resources/, images/)
-cd "$FRAPPE_DOCKER_DIR"
-
-# Base64 encode apps.json (Linux/macOS compatible)
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    APPS_JSON_BASE64=$(base64 -i apps.json | tr -d '\n')
-else
-    APPS_JSON_BASE64=$(base64 -w 0 apps.json)
-fi
-
-echo "Building image from frappe_docker (context: $FRAPPE_DOCKER_DIR)..."
+# Build using Python 3.11 for Frappe v16 compatibility
 docker build \
-    --build-arg FRAPPE_BRANCH=version-16 \
+    --build-arg FRAPPE_BRANCH="$FRAPPE_BRANCH" \
     --build-arg APPS_JSON_BASE64="$APPS_JSON_BASE64" \
-    --tag frappe-erpnext-hrms-insights:v16 \
-    --file images/custom/Containerfile \
-    .
+    --tag "$CUSTOM_IMAGE" \
+    --file images/custom/Containerfile .
 
-BUILD_EXIT=$?
 cd "$SCRIPT_DIR"
 
-if [ $BUILD_EXIT -ne 0 ]; then
-    echo ""
-    echo "Build failed. Check the output above for errors."
-    exit 1
+# --- 5. Orchestrate Containers ---
+echo "Starting containers via $COMPOSE_FILE..."
+docker compose -f "$COMPOSE_FILE" up -d
+echo "Waiting for services to stabilize (45s)..."
+sleep 45
+
+# --- 6. Bench Site Logic ---
+
+if docker exec "$BACKEND_CONTAINER" bench list-sites | grep -q "$SITE_DOMAIN"; then
+    echo "Site $SITE_DOMAIN exists. Running migrations..."
+    docker exec "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" install-app erpnext hrms insights || true
+    docker exec "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" migrate
+else
+    echo "Provisioning new site: $SITE_DOMAIN..."
+    docker exec -i "$BACKEND_CONTAINER" bench new-site "$SITE_DOMAIN" \
+      --admin-password admin --root-login root --root-password admin \
+      --install-app erpnext --install-app hrms --install-app insights --set-default
 fi
 
-if ! docker image inspect frappe-erpnext-hrms-insights:v16 > /dev/null 2>&1; then
-    echo "Error: Image was not created successfully."
-    exit 1
-fi
-
-echo ""
 echo "=========================================="
-echo "Image built successfully!"
-echo "Starting containers..."
-echo "=========================================="
-
-# Start with our custom compose file
-docker compose -f pwd-with-apps.yml up -d
-
-echo ""
-echo "Containers are starting. Wait 3-5 minutes for site creation."
-echo ""
-echo "Monitor progress with:"
-echo "  docker compose -f pwd-with-apps.yml logs -f create-site"
-echo ""
-echo "When ready, open: http://localhost:8080"
-echo "  Username: Administrator"
-echo "  Password: admin"
-echo ""
-echo "To stop: docker compose -f pwd-with-apps.yml down"
+echo "Setup Complete. Access URL: http://localhost:8080"
 echo "=========================================="

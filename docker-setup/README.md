@@ -2020,7 +2020,7 @@ Build a custom image that includes all three apps.
 ```bash
 cd /home/hnna/my-frappe-setup/docker-setup
 chmod +x setup.sh
-./setup.sh
+./setup.sh --no-cache
 ```
 
 This will:
