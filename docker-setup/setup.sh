@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Purpose: Build custom Docker image and initialize the Frappe site
+
+# Purpose: Build custom Docker image and initialize a Frappe site
 set -e
 
 # --- 1. Load Environment Variables ---
 if [ -f .env ]; then 
     export $(grep -v '^#' .env | xargs)
+    echo "Environment variables loaded from .env"
 else 
     echo "Error: .env file not found. Setup aborted."; exit 1
 fi
@@ -36,7 +38,7 @@ echo "Building Image: $CUSTOM_IMAGE"
 cp "$SCRIPT_DIR/apps.json" "$FRAPPE_PATH/apps.json"
 cd "$FRAPPE_PATH"
 
-# Encode apps.json to Base64 for the Docker build context
+# Encode apps.json to Base64 for Docker build context
 APPS_JSON_BASE64=$(base64 -w 0 apps.json 2>/dev/null || base64 apps.json | tr -d '\n')
 
 # Build using Python 3.11 for Frappe v16 compatibility
@@ -54,19 +56,56 @@ docker compose -f "$COMPOSE_FILE" up -d
 echo "Waiting for services to stabilize (45s)..."
 sleep 45
 
-# --- 6. Bench Site Logic ---
+# --- 6. Dynamic Site Creation Logic ---
+echo "Checking site status for domain: $SITE_DOMAIN"
 
-if docker exec "$BACKEND_CONTAINER" bench list-sites | grep -q "$SITE_DOMAIN"; then
+# Wait for backend to be ready
+echo "Waiting for backend container to be ready..."
+for i in {1..10}; do
+    if docker compose exec -T backend bench list-sites >/dev/null 2>&1; then
+        echo "Backend is ready!"
+        break
+    else
+        echo "Waiting for backend... ($i/10)"
+        sleep 10
+    fi
+done
+
+# Check if site exists and create/update accordingly
+if docker compose exec -T backend bench list-sites 2>/dev/null | grep -q "$SITE_DOMAIN"; then
     echo "Site $SITE_DOMAIN exists. Running migrations..."
-    docker exec "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" install-app erpnext hrms insights || true
-    docker exec "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" migrate
+    docker compose exec -T backend bench --site "$SITE_DOMAIN" install-app erpnext hrms insights || true
+    docker compose exec -T backend bench --site "$SITE_DOMAIN" migrate
+    echo "Migrations completed for existing site!"
 else
     echo "Provisioning new site: $SITE_DOMAIN..."
-    docker exec -i "$BACKEND_CONTAINER" bench new-site "$SITE_DOMAIN" \
-      --admin-password admin --root-login root --root-password admin \
-      --install-app erpnext --install-app hrms --install-app insights --set-default
+    echo "This may take 5-10 minutes..."
+    
+    # Create new site with all apps
+    docker compose exec -T backend bench new-site "$SITE_DOMAIN" \
+        --admin-password "$ADMIN_PASSWORD" \
+        --root-login root \
+        --root-password "$MYSQL_ROOT_PASSWORD" \
+        --install-app erpnext \
+        --install-app hrms \
+        --install-app insights \
+        --set-default
+    
+    echo "New site created successfully!"
 fi
 
 echo "=========================================="
-echo "Setup Complete. Access URL: http://localhost:8080"
+echo "Setup Complete!"
+echo "Access URL: http://localhost:8080"
+echo "Site Domain: $SITE_DOMAIN"
+echo "Username: Administrator"
+echo "Password: $ADMIN_PASSWORD"
+echo "=========================================="
+
+echo ""
+echo "To monitor site creation:"
+echo "  docker compose -f $COMPOSE_FILE logs -f create-site"
+echo ""
+echo "To stop all services:"
+echo "  docker compose -f $COMPOSE_FILE down"
 echo "=========================================="
