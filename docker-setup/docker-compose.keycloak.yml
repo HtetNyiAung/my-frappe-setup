@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak_password
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak_password}
     volumes:
       - keycloak_db_data:/var/lib/postgresql/data
     networks:
@@ -22,7 +22,7 @@ services:
     image: quay.io/keycloak/keycloak:23.0
     container_name: keycloak
     command:
-      - start-dev
+      - ${KC_RUN_MODE:-start-dev}
       - --http-relative-path=/auth
       - --hostname-strict=false
       - --http-enabled=true
@@ -31,11 +31,11 @@ services:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
       KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak_password
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: localhost
-      KC_HOSTNAME_PORT: 8686
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak_password}
+      KEYCLOAK_ADMIN: ${KC_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
+      KC_HOSTNAME: ${KC_HOSTNAME:-localhost}
+      KC_HOSTNAME_PORT: ${KC_PORT:-8686}
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
@@ -47,7 +47,7 @@ services:
       KC_HEALTH_ENABLED: "true"
       JAVA_OPTS_APPEND: "-Djava.net.preferIPv4Stack=true -Djava.awt.headless=true -Xms512m -Xmx1024m"
     ports:
-      - "8686:8080"
+      - "${KC_PORT:-8686}:8080"
     depends_on:
       keycloak-db:
         condition: service_healthy
