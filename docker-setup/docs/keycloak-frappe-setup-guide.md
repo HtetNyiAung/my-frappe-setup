@@ -125,22 +125,39 @@ We need to map exactly what Keycloak sends to what Frappe expects.
 
 ---
 
-### 3. Fixing "Not Permitted" Error (Role Mapping)
-When a new user signs up via Keycloak/Google, Frappe creates a new User but assigns **NO ROLES** by default. This causes a "Not Permitted" error when they try to access the dashboard.
+### 3. Fixing "Not Permitted" Error (Role Assignment)
+When a new user signs up via Keycloak/Google, Frappe automatically creates a new User account, but assigns it the **Website User** role by default. This role is not allowed to access the Desk (Dashboard), which results in a **"Not Permitted"** error.
 
-**To fix this:**
-1. Scroll down in the **Social Login Key** configuration to the **User Settings** section.
-2. Look for the **Default Role** field.
-3. Select a role like **Employee** or **System Manager** (careful with permissions!).
-4. Alternatively, scroll to the **Roles** table at the bottom and add specific roles you want all Keycloak users to have automatically.
+**To fix this automatically:**
+1. Scroll to the very bottom of the **Social Login Key** page for Keycloak.
+2. Look for the **Roles** (or **Social Login Key Roles**) table.
+3. Click the **"Add Row"** button.
+4. Select a role that allows Desk access, such as **Employee** or **System Manager** (careful: System Manager gives full access!).
 5. Click **Save**.
+
+Now, when a new user signs up via Keycloak, they will be given the **Employee** role automatically and can access the dashboard.
 
 ---
 
-### 4. Save & Test!
+### 4. Enable Signups in Frappe (ERPNext)
+If you see a **"Signup is Disabled"** error when trying to use Keycloak, you must enable it in Frappe:
+1. Search for **Website Settings** in the Frappe search bar.
+2. Under the **Sign Up and Login** section, uncheck the box for **Disable Signup**.
+3. Click **Save**.
+
+### 5. Final Keycloak Registration Check
+To ensure **Register** and **Forgot Password** work correctly on the Keycloak screen:
+1. In Keycloak Admin, go to **Realm Settings** > **Login** tab.
+2. Confirm both **User registration** and **Forgot password** are toggled **ON**.
+3. Now, when a user clicks "Login with Keycloak" in Frappe, they can use these features!
+
+---
+
+### 6. Save & Test!
 1. Click **Save** in the top right.
 2. Log out of Frappe.
 3. On the ERPNext Login screen, you should now see a bright blue button below the username/password box saying **Login with Keycloak**.
+4. Test with a **New User** signup and verify they can see the ERPNext Dashboard!
 
 ---
 ---
