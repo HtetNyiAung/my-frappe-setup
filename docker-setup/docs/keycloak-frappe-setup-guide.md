@@ -121,3 +121,40 @@ We need to map exactly what Keycloak sends to what Frappe expects.
 2. Log out of Frappe.
 3. On the ERPNext Login screen, you should now see a bright blue button below the username/password box saying **Login with Keycloak**.
 4. Click it! It will take you to Keycloak, log in using your `testuser`, and you will automatically be redirected back and logged into ERPNext!
+
+---
+---
+
+## Part 3: Advanced: Social Login with Google
+
+သင့်ရဲ့ Gmail account နဲ့ Frappe ထဲကို တိုက်ရိုက် Login ဝင်နိုင်အောင် Keycloak မှာ Google Social Login (Identity Provider) ကို သတ်မှတ်နိုင်ပါတယ်။
+
+### အဆင့် (၁) - Google Cloud Console မှာ Client ID နှင့် Secret ယူခြင်း
+
+၁။ [Google Cloud Console](https://console.cloud.google.com/) ကို သွားပြီး Project တစ်ခု ရွေးချယ်ပါ။
+၂။ **APIs & Services > Credentials** ကို သွားပါ။
+၃။ **+ CREATE CREDENTIALS** ကို နှိပ်ပြီး **OAuth client ID** ကို ရွေးပါ။
+၄။ Application type မှာ **Web application** ကို ရွေးပါ။
+၅။ **Authorized redirect URIs** နေရာမှာ အောက်ပါ Keycloak Redirect URL ကို ထည့်ပေးပါ (ဒါက အရေးကြီးဆုံးပါ) -
+   - `http://localhost:8686/auth/realms/frappe-realm/broker/google/endpoint`
+   *(မှတ်ချက် - သင်၏ realm name ပြောင်းလဲပါက `frappe-realm` နေရာတွင် အစားထိုးရန်)*
+၆။ **CREATE** ကို နှိပ်ပြီး **Client ID** နှင့် **Client Secret** ကို copy ကူးထားပါ။
+
+### အဆင့် (၂) - Keycloak Admin Console မှာ သတ်မှတ်ခြင်း
+
+၁။ Keycloak Admin Console (`http://localhost:8686/auth/admin`) ရှိ `frappe-realm` ထဲသို့ ဝင်ပါ။
+၂။ ဘယ်ဘက် menu မှ **Identity Providers** ကို နှိပ်ပြီး **Add provider...** dropdown မှ **Google** ကို ရွေးပါ။
+၃။ ပေါ်လာသော form တွင် အောက်ပါတို့ကို ဖြည့်စွက်ပါ -
+   - **Redirect URI**: (ဒါက Keycloak က အလိုအလျောက် ပေးထားတာ ဖြစ်ပြီး အဆင့် ၁ ရဲ့ item ၅ မှာ သုံးခဲ့တာနဲ့ တူရပါမယ်)
+   - **Client ID**: (Google Console မှ ရလာသော Client ID ကို ထည့်ပါ)
+   - **Client Secret**: (Google Console မှ ရလာသော Client Secret ကို ထည့်ပါ)
+၄။ **Add** ကို နှိပ်ပြီး Save လုပ်ပါ။
+
+### အဆင့် (၃) - စမ်းသပ်ကြည့်ခြင်း
+
+၁။ Frappe Login Page သို့ သွားပြီး **"Login with Keycloak"** ကို နှိပ်ပါ။
+၂။ Keycloak Login screen တွင် **"Google"** ခလုတ်လေး ပေါ်နေပါလိမ့်မည်။
+၃။ ၎င်းကို နှိပ်ပြီး သင်၏ Gmail account ဖြင့် တိုက်ရိုက် Login ဝင်နိုင်ပါပြီ။
+
+> [!TIP]
+> **Auto-Provisioning**: Keycloak မှာ Google နဲ့ login ဝင်လိုက်တဲ့ user က Frappe ထဲမှာ အလိုအလျောက် User Account အသစ် ဆောက်ပေးသွားမှာ ဖြစ်တဲ့အတွက် user တွေကို manual လိုက်ဆောက်စရာ မလိုတော့ပါဘူး။
