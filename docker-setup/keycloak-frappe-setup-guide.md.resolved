@@ -109,7 +109,8 @@ Fill in the form very carefully using the credentials we created in Part 1.
 #### Field Mapping (Under Profile Property)
 We need to map exactly what Keycloak sends to what Frappe expects.
 
-- **Auth url data**: `{"response_type": "code", "scope": "openid profile email"}`
+- **Auth url data**: `{"response_type": "code", "scope": "openid profile email", "prompt": "login"}`
+  > *(Adding `"prompt": "login"` is a crucial trick! It forces Keycloak to ask for the password every time you click the button, fixing the issue where logging out of Frappe didn't log you out of Keycloak).*
 - **User ID Property**: `sub` (or you can use `email` if you want them strictly bound by email)
 
 > [!TIP]
