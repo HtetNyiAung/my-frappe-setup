@@ -29,14 +29,17 @@ cp .env.example .env
 ```
 > **Note:** For production, edit `.env` and change `KC_RUN_MODE=start`, use secure passwords, and set your real domains in `SITE_DOMAIN` and `KC_HOSTNAME`.
 
-### 3. Start the Stack
-You can start Frappe and Keycloak independently, or all at once:
+### 3. Start the Stack (Installation)
+Because we use a custom Docker image that bundles **ERPNext, HRMS, and Insights**, you must build the image and provision the Frappe site using the included setup script before turning on Keycloak.
 
 ```bash
-# Start Frappe apps
-docker compose -f pwd-with-apps.yml up -d
+# 1. Make scripts executable
+chmod +x setup.sh logs.sh cleanup.sh backup.sh restore.sh
 
-# Start Keycloak SSO server
+# 2. Build the Frappe Image, provision the site, and start the Frappe stack
+./setup.sh
+
+# 3. Start the Keycloak SSO server
 docker compose -f docker-compose.keycloak.yml up -d
 ```
 
