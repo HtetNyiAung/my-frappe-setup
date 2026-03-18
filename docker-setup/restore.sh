@@ -47,8 +47,11 @@ docker cp "$BACKUP_SRC/." "$BACKEND_CONTAINER":/tmp/restore_data/
 echo "Running bench restore (this will overwrite current data)..."
 SQL_BASE_NAME=$(basename "$SQL_FILE")
 
-# We point to the path inside the container
-docker exec -i "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" restore "/tmp/restore_data/backups/$SQL_BASE_NAME" --force
+# We dynamically locate the SQL file inside the uploaded directory to ensure the path is foolproof
+INTERNAL_SQL_PATH=$(docker exec "$BACKEND_CONTAINER" find /tmp/restore_data -name "*.sql.gz" | head -n 1)
+
+# Execute the restore
+docker exec -i "$BACKEND_CONTAINER" bash -c "bench --site '$SITE_DOMAIN' restore '$INTERNAL_SQL_PATH' --force"
 
 # 5. Finalize with Migrations
 echo "Finalizing restore and syncing schema..."

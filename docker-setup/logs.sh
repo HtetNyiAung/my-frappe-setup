@@ -14,4 +14,4 @@ echo "Press Ctrl+C to stop."
 echo "=========================================="
 
 # -f follows the stream, --tail 100 avoids overwhelming the terminal
-docker compose -f "$COMPOSE_FILE" logs -f --tail 100
+docker compose -f "$COMPOSE_FILE" -f docker-compose.keycloak.yml logs -f --tail 100
