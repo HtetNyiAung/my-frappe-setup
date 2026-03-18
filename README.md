@@ -33,7 +33,7 @@ my-frappe-setup/
 │   ├── .env.example             # Configuration template
 │   ├── pwd-with-apps.yml        # Frappe Docker Compose
 │   ├── docker-compose.keycloak.yml # Keycloak Docker Compose
-│   ├── keycloak-frappe-setup-guide.md.resolved # SSO Integration Documentation
+│   ├── keycloak-frappe-setup-guide.md # SSO Integration Documentation
 │   ├── setup.sh                 # Stack initial build and provision
 │   ├── cleanup.sh               # Container cleanup utility
 │   ├── backup.sh                # Container backup utility
