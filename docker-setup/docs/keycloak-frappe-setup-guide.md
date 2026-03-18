@@ -2,6 +2,8 @@
 
 This guide walks you through setting up a fresh Keycloak instance, creating a completely new Realm (recommended over using the default _Master_ realm), creating an OAuth2 client, and then configuring ERPNext (Frappe) so that users can log in using Keycloak.
 
+---
+
 ## Part 1: Keycloak Configuration
 
 Since you just wiped the database, Keycloak is clean. Follow these steps to prepare your authentication server.
@@ -9,26 +11,26 @@ Since you just wiped the database, Keycloak is clean. Follow these steps to prep
 ### 1. Log into Keycloak
 1. Go to **http://localhost:8686/auth/admin**
 2. Login with your admin credentials:
-   - **Username**: `admin`
-   - **Password**: `admin`
+   - **Username**: \`admin\`
+   - **Password**: \`admin\`
 
 ### 2. Create a New Realm
 > [!IMPORTANT]
-> **Why not Master?** The `master` realm is strictly for Keycloak administration. Dedicated applications (like your Frappe setup) should always exist inside their own realms so the user permissions are completely isolated.
+> **Why not Master?** The \`master\` realm is strictly for Keycloak administration. Dedicated applications (like your Frappe setup) should always exist inside their own realms so the user permissions are completely isolated.
 
 1. Look at the top-left corner where it says **Master** with a dropdown arrow. Click the dropdown.
 2. Click **Create Realm**.
-3. **Realm name**: `frappe-realm` (You can name it anything, but we will use this name for the rest of the guide).
+3. **Realm name**: \`frappe-realm\` (You can name it anything, but we will use this name for the rest of the guide).
 4. Click **Create**.
 
 ### 3. Create a New Client (For Frappe)
-Now that you are inside your new `frappe-realm`, we need to tell Keycloak about Frappe so it accepts authentication requests.
+Now that you are inside your new \`frappe-realm\`, we need to tell Keycloak about Frappe so it accepts authentication requests.
 
 1. On the left sidebar menu, go to **Clients**.
 2. Click **Create Client**.
 3. In the **General Settings** tab:
-   - **Client type**: `OpenID Connect`
-   - **Client ID**: `frappe-client` (Keep this in mind, you need it for Frappe).
+   - **Client type**: \`OpenID Connect\`
+   - **Client ID**: \`frappe-client\` (Keep this in mind, you need it for Frappe).
    - Click **Next**.
 4. In the **Capability config** tab:
    - **Client authentication**: Toggle this **ON** (This forces Keycloak to generate a Client Secret).
@@ -36,14 +38,14 @@ Now that you are inside your new `frappe-realm`, we need to tell Keycloak about 
    - For **Authentication flow**, ensure **Standard flow** is checked.
    - Click **Next**.
 5. In the **Login settings** tab:
-   - **Valid redirect URIs**: `http://localhost:8787/api/method/frappe.integrations.oauth2_logins.custom/*` (Replace `localhost:8787` if your ERPNext address is different, but based on your compose file, it is `localhost:8787`).
-   - **Web origins**: `http://localhost:8787` (Crucial for CORS).
+   - **Valid redirect URIs**: \`http://localhost:8787/api/method/frappe.integrations.oauth2_logins.custom/*\` (Replace \`localhost:8787\` if your ERPNext address is different, but based on your compose file, it is \`localhost:8787\`).
+   - **Web origins**: \`http://localhost:8787\` (Crucial for CORS).
    - Click **Save**.
 
 ### 4. Copy Your Missing Credentials
 Your client is now created. We need its specific credentials for Frappe.
 
-1. Inside your new `frappe-client` configurations, navigate to the **Credentials** tab at the top.
+1. Inside your new \`frappe-client\` configurations, navigate to the **Credentials** tab at the top.
 2. Locate the **Client Secret**.
 3. Copy the secret ID. You'll need it shortly.
 
@@ -54,25 +56,33 @@ Frappe will need to know *where* to direct the browser to log in, and *where* to
 
 Go to **Realm Settings** (on the left menu below your Realm name). At the very top under "General", look for "Endpoints", and click **OpenID Endpoint Configuration**. A JSON page will pop up, which will show you exact addresses, but they essentially follow this formula:
 
-- **Base URL**: `http://keycloak:8080/auth/realms/frappe-realm` 
-  > *(Why not `localhost:8686`? Because the Frappe container will be talking to the Keycloak container directly across their shared Docker network! So `keycloak:8080` is the actual internal path).*
-- **Authorization Endpoint**: `http://localhost:8686/auth/realms/frappe-realm/protocol/openid-connect/auth` 
+- **Base URL**: \`http://keycloak:8080/auth/realms/frappe-realm\` 
+  > *(Why not \`localhost:8686\`? Because the Frappe container will be talking to the Keycloak container directly across their shared Docker network! So \`keycloak:8080\` is the actual internal path).*
+- **Authorization Endpoint**: \`http://localhost:8686/auth/realms/frappe-realm/protocol/openid-connect/auth\` 
   > *(The authorization explicitly happens on the user's browser, so it MUST be the public-facing localhost URL).*
-- **Token Endpoint**: `http://keycloak:8080/auth/realms/frappe-realm/protocol/openid-connect/token`
-- **Userinfo Endpoint**: `http://keycloak:8080/auth/realms/frappe-realm/protocol/openid-connect/userinfo`
+- **Token Endpoint**: \`http://keycloak:8080/auth/realms/frappe-realm/protocol/openid-connect/token\`
+- **Userinfo Endpoint**: \`http://keycloak:8080/auth/realms/frappe-realm/protocol/openid-connect/userinfo\`
 
 ---
 
-### 6. Add a Test User in Keycloak
+### 6. Set Up User Features (Signup, Forgot Password)
+By default, Keycloak does not allow users to register themselves.
+1. Go to **Realm Settings** > **Login** tab.
+2. Toggle **User registration** to **ON**.
+3. Toggle **Forgot password** to **ON**.
+4. Toggle **Remember me** to **ON**.
+5. Click **Save**.
+
+### 7. Add a Test User in Keycloak
 1. Go to **Users** in the left menu.
 2. Click **Add user**.
-3. **Username**: `testuser`
-4. **Email**: `testuser@example.com`
+3. **Username**: \`testuser\`
+4. **Email**: \`testuser@example.com\`
 5. **Email verified**: Toggle to ON (Frappe requires an email).
 6. Click **Create**.
 7. Once the user is made, go to the **Credentials** tab for that user.
 8. Click **Set password**.
-9. Set a password (e.g., `testpass`) and switch **Temporary** to **OFF**. Look for the confirmation to save.
+9. Set a password (e.g., \`testpass\`) and switch **Temporary** to **OFF**. Look for the confirmation to save.
 
 ---
 ---
@@ -93,68 +103,65 @@ Fill in the form very carefully using the credentials we created in Part 1.
 > **CRITICAL FIX**: In the **Social Login Provider** dropdown at the very top, you MUST select **Custom**. Do NOT select "Keycloak" if it appears in the dropdown, as Frappe will lock the Endpoint URL fields and you won't be able to edit them!
 
 #### Basic Info
-- **Social Login Provider**: `Custom`
-- **Provider Name**: `Keycloak` (This is just a label, type "Keycloak" here so the button says "Login with Keycloak")
-- **Client ID**: `frappe-client`
+- **Social Login Provider**: \`Custom\`
+- **Provider Name**: \`Keycloak\` (This is just a label, type "Keycloak" here so the button says "Login with Keycloak")
+- **Client ID**: \`frappe-client\`
 - **Client Secret**: *(Paste the long string you copied from the client Credentials tab)*
-- **Base URL**: `http://keycloak:8080/auth/realms/frappe-realm`  
+- **Base URL**: \`http://keycloak:8080/auth/realms/frappe-realm\`  
 - **Enable Social Login**: Check the box ✅
 
 #### Endpoint URLs
-- **Authorize URL**: `http://localhost:8686/auth/realms/frappe-realm/protocol/openid-connect/auth` (User's browser does this)
-- **Access Token URL**: `http://keycloak:8080/auth/realms/frappe-realm/protocol/openid-connect/token` (Server does this internally)
-- **Redirect URL**: `http://localhost:8787/api/method/frappe.integrations.oauth2_logins.custom/keycloak` (Make sure the final slug matches your Provider Name lowercase, e.g. `keycloak`)
-- **API Endpoint**: `http://keycloak:8080/auth/realms/frappe-realm/protocol/openid-connect/userinfo` (This is CRITICAL: Frappe fetches the test user's email from here!)
+- **Authorize URL**: \`http://localhost:8686/auth/realms/frappe-realm/protocol/openid-connect/auth\` (User's browser does this)
+- **Access Token URL**: \`http://keycloak:8080/auth/realms/frappe-realm/protocol/openid-connect/token\` (Server does this internally)
+- **Redirect URL**: \`http://localhost:8787/api/method/frappe.integrations.oauth2_logins.custom/keycloak\` (Make sure the final slug matches your Provider Name lowercase, e.g. \`keycloak\`)
+- **API Endpoint**: \`http://keycloak:8080/auth/realms/frappe-realm/protocol/openid-connect/userinfo\` (This is CRITICAL: Frappe fetches the test user's email from here!)
 
 #### Field Mapping (Under Profile Property)
 We need to map exactly what Keycloak sends to what Frappe expects.
 
-- **Auth url data**: `{"response_type": "code", "scope": "openid profile email", "prompt": "login"}`
-  > *(Adding `"prompt": "login"` is a crucial trick! It forces Keycloak to ask for the password every time you click the button, fixing the issue where logging out of Frappe didn't log you out of Keycloak).*
-- **User ID Property**: `sub` (or you can use `email` if you want them strictly bound by email)
+- **Auth url data**: \`{"response_type": "code", "scope": "openid profile email", "prompt": "login"}\`
+  > *(Adding \`"prompt": "login"\` is a crucial trick! It forces Keycloak to ask for the password every time you click the button, fixing the issue where logging out of Frappe didn't log you out of Keycloak).*
+- **User ID Property**: \`sub\` (or you can use \`email\` if you want them strictly bound by email)
 
-> [!TIP]
-> **Troubleshooting `Invalid Provider`**: Make sure your Custom Endpoint is exactly right. If Frappe is telling you the Custom Provider `keycloak` doesn't exist upon logging in, review the Redirect URL.
+---
 
-### 3. Save & Test!
+### 3. Fixing "Not Permitted" Error (Role Mapping)
+When a new user signs up via Keycloak/Google, Frappe creates a new User but assigns **NO ROLES** by default. This causes a "Not Permitted" error when they try to access the dashboard.
+
+**To fix this:**
+1. Scroll down in the **Social Login Key** configuration to the **User Settings** section.
+2. Look for the **Default Role** field.
+3. Select a role like **Employee** or **System Manager** (careful with permissions!).
+4. Alternatively, scroll to the **Roles** table at the bottom and add specific roles you want all Keycloak users to have automatically.
+5. Click **Save**.
+
+---
+
+### 4. Save & Test!
 1. Click **Save** in the top right.
 2. Log out of Frappe.
 3. On the ERPNext Login screen, you should now see a bright blue button below the username/password box saying **Login with Keycloak**.
-4. Click it! It will take you to Keycloak, log in using your `testuser`, and you will automatically be redirected back and logged into ERPNext!
 
 ---
 ---
 
 ## Part 3: Advanced: Social Login with Google
 
-သင့်ရဲ့ Gmail account နဲ့ Frappe ထဲကို တိုက်ရိုက် Login ဝင်နိုင်အောင် Keycloak မှာ Google Social Login (Identity Provider) ကို သတ်မှတ်နိုင်ပါတယ်။
+You can configure Google Social Login inside Keycloak so users can log into Frappe using their Gmail accounts.
 
-### အဆင့် (၁) - Google Cloud Console မှာ Client ID နှင့် Secret ယူခြင်း
+### Step 1: Obtain Google Credentials
+1. Go to [Google Cloud Console](https://console.cloud.google.com/).
+2. Create/Select a Project > **APIs & Services** > **Credentials**.
+3. Click **+ CREATE CREDENTIALS** > **OAuth client ID**.
+4. Select **Web application**.
+5. Under **Authorized redirect URIs**, add the Keycloak broker URL:
+   - \`http://localhost:8686/auth/realms/frappe-realm/broker/google/endpoint\`
+6. Click **CREATE** and copy the **Client ID** and **Client Secret**.
 
-၁။ [Google Cloud Console](https://console.cloud.google.com/) ကို သွားပြီး Project တစ်ခု ရွေးချယ်ပါ။
-၂။ **APIs & Services > Credentials** ကို သွားပါ။
-၃။ **+ CREATE CREDENTIALS** ကို နှိပ်ပြီး **OAuth client ID** ကို ရွေးပါ။
-၄။ Application type မှာ **Web application** ကို ရွေးပါ။
-၅။ **Authorized redirect URIs** နေရာမှာ အောက်ပါ Keycloak Redirect URL ကို ထည့်ပေးပါ (ဒါက အရေးကြီးဆုံးပါ) -
-   - `http://localhost:8686/auth/realms/frappe-realm/broker/google/endpoint`
-   *(မှတ်ချက် - သင်၏ realm name ပြောင်းလဲပါက `frappe-realm` နေရာတွင် အစားထိုးရန်)*
-၆။ **CREATE** ကို နှိပ်ပြီး **Client ID** နှင့် **Client Secret** ကို copy ကူးထားပါ။
+### Step 2: Configure Google in Keycloak
+1. Go to **Identity Providers** > **Add provider...** > **Google**.
+2. Paste the **Client ID** and **Client Secret**.
+3. Click **Add**.
 
-### အဆင့် (၂) - Keycloak Admin Console မှာ သတ်မှတ်ခြင်း
-
-၁။ Keycloak Admin Console (`http://localhost:8686/auth/admin`) ရှိ `frappe-realm` ထဲသို့ ဝင်ပါ။
-၂။ ဘယ်ဘက် menu မှ **Identity Providers** ကို နှိပ်ပြီး **Add provider...** dropdown မှ **Google** ကို ရွေးပါ။
-၃။ ပေါ်လာသော form တွင် အောက်ပါတို့ကို ဖြည့်စွက်ပါ -
-   - **Redirect URI**: (ဒါက Keycloak က အလိုအလျောက် ပေးထားတာ ဖြစ်ပြီး အဆင့် ၁ ရဲ့ item ၅ မှာ သုံးခဲ့တာနဲ့ တူရပါမယ်)
-   - **Client ID**: (Google Console မှ ရလာသော Client ID ကို ထည့်ပါ)
-   - **Client Secret**: (Google Console မှ ရလာသော Client Secret ကို ထည့်ပါ)
-၄။ **Add** ကို နှိပ်ပြီး Save လုပ်ပါ။
-
-### အဆင့် (၃) - စမ်းသပ်ကြည့်ခြင်း
-
-၁။ Frappe Login Page သို့ သွားပြီး **"Login with Keycloak"** ကို နှိပ်ပါ။
-၂။ Keycloak Login screen တွင် **"Google"** ခလုတ်လေး ပေါ်နေပါလိမ့်မည်။
-၃။ ၎င်းကို နှိပ်ပြီး သင်၏ Gmail account ဖြင့် တိုက်ရိုက် Login ဝင်နိုင်ပါပြီ။
-
-> [!TIP]
-> **Auto-Provisioning**: Keycloak မှာ Google နဲ့ login ဝင်လိုက်တဲ့ user က Frappe ထဲမှာ အလိုအလျောက် User Account အသစ် ဆောက်ပေးသွားမှာ ဖြစ်တဲ့အတွက် user တွေကို manual လိုက်ဆောက်စရာ မလိုတော့ပါဘူး။
+### Step 3: Test
+Now, when users click "Login with Keycloak" on the Frappe login page, they will see a **Google** button on the Keycloak screen to authenticate with their Gmail.
