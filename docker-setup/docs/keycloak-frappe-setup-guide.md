@@ -160,9 +160,21 @@ To ensure **Register** and **Forgot Password** work correctly on the Keycloak sc
 4. Test with a **New User** signup and verify they can see the ERPNext Dashboard!
 
 ---
+
+### 7. Bypassing "Administrator Verification" Error
+If you see the message **"Please ask your administrator to verify your sign-up"** after a user signs up via Keycloak:
+
+1. Search for **Website Settings** in the Frappe search bar.
+2. Scroll to the **Sign Up and Login** section.
+3. **Uncheck** these two boxes:
+   - [ ] **Verify Sign Up** (This stops Frappe from sending verification emails).
+   - [ ] **Wait for Administrator Verification** (This allows users to log in immediately without manual approval).
+4. Click **Save**.
+
+---
 ---
 
-## Part 3: Advanced: Social Login with Google
+## Part 3: Advanced Integrations
 
 You can configure Google Social Login inside Keycloak so users can log into Frappe using their Gmail accounts.
 
@@ -182,3 +194,29 @@ You can configure Google Social Login inside Keycloak so users can log into Frap
 
 ### Step 3: Test
 Now, when users click "Login with Keycloak" on the Frappe login page, they will see a **Google** button on the Keycloak screen to authenticate with their Gmail.
+
+---
+
+### Role Mapping (Keycloak Groups -> Frappe Roles)
+Instead of assigning a single default role, you can sync Keycloak Groups directly to Frappe Roles.
+
+**1. Keycloak Setup**
+1. Go to **Clients** > **frappe-client**.
+2. Click the **Client Scopes** tab.
+3. Click the link for **frappe-client-dedicated**.
+4. Click **Add mapper** > **By configuration** > **Group Membership**.
+5. Configure as follows:
+   - **Name**: `groups`
+   - **Token Claim Name**: `groups`
+   - **Full group path**: OFF
+   - **Add to ID token**: ON
+   - **Add to user info**: ON
+6. Click **Save**.
+
+**2. Frappe Setup**
+1. Go to your **Social Login Key** for Keycloak.
+2. Scroll down to the **Field Mapping** or **Profile Property** section.
+3. In the **Roles Property** field, type `groups`.
+4. Click **Save**.
+
+**How it works**: If a user is in a group named `System Manager` in Keycloak, they will automatically get the `System Manager` role in Frappe when they log in!
