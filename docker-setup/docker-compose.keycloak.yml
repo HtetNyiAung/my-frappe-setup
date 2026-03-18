@@ -1,0 +1,71 @@
+
+services:
+  keycloak-db:
+    image: postgres:15
+    container_name: keycloak-db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak_password
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    networks:
+      - keycloak-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: keycloak
+    command:
+      - start-dev
+      - --http-relative-path=/auth
+      - --hostname-strict=false
+      - --http-enabled=true
+      - --proxy=edge
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8686
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: edge
+      KC_PROXY_ADDRESS_FORWARDING: "true"
+      # Performance optimizations
+      KC_CACHE: local
+      KC_TRANSACTION_XA_ENABLED: "false"
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_APPEND: "-Djava.net.preferIPv4Stack=true -Djava.awt.headless=true -Xms512m -Xmx1024m"
+    ports:
+      - "8686:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - keycloak-network
+      - frappe_network
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  keycloak-network:
+    driver: bridge
+    name: keycloak-network
+  frappe_network:
+    external: true
+    name: docker-setup_frappe_network
+
+volumes:
+  keycloak_db_data:
+    name: keycloak_db_data
