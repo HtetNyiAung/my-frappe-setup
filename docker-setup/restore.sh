@@ -5,7 +5,7 @@ set -e
 
 # --- 1. Load Environment Variables from .env ---
 if [ -f .env ]; then 
-    export $(grep -v '^#' .env | xargs)
+    export $(grep -v '^#' .env | sed 's/\s*#.*$//' | xargs)
 else 
     echo "Error: .env file missing. Restore aborted."; exit 1
 fi

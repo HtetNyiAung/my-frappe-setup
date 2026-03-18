@@ -5,7 +5,7 @@ set -e
 
 # --- 1. Load Environment Variables ---
 if [ -f .env ]; then 
-    export $(grep -v '^#' .env | xargs)
+    export $(grep -v '^#' .env | sed 's/\s*#.*$//' | xargs)
     echo "Environment variables loaded from .env"
 else 
     echo "Error: .env file not found. Setup aborted."; exit 1
@@ -56,47 +56,53 @@ docker compose -f "$COMPOSE_FILE" up -d
 echo "Waiting for services to stabilize (45s)..."
 sleep 45
 
-# --- 6. Dynamic Site Creation Logic ---
-echo "Checking site status for domain: $SITE_DOMAIN"
+    # --- 6. Extract App Names from apps.json ---
+    APP_NAMES=$(grep -oP '"url":\s*"\K[^"]+' apps.json | awk -F'/' '{print $NF}')
+    INSTALL_APP_ARGS=""
+    for app in $APP_NAMES; do
+        INSTALL_APP_ARGS="${INSTALL_APP_ARGS} --install-app ${app}"
+    done
 
-# Wait for backend to be ready
-echo "Waiting for backend container to be ready..."
-for i in {1..10}; do
-    if docker compose exec -T backend bench list-sites >/dev/null 2>&1; then
-        echo "Backend is ready!"
-        break
+    # --- 7. Dynamic Site Creation Logic ---
+    echo "Checking site status for domain: $SITE_DOMAIN"
+    
+    # Wait for backend to be ready
+    echo "Waiting for backend container to be ready..."
+    for i in {1..10}; do
+        if docker compose exec -T backend bench list-sites >/dev/null 2>&1; then
+            echo "Backend is ready!"
+            break
+        else
+            echo "Waiting for backend... ($i/10)"
+            sleep 10
+        fi
+    done
+    
+    # Check if site exists and create/update accordingly
+    if docker compose exec -T backend bench list-sites 2>/dev/null | grep -q "$SITE_DOMAIN"; then
+        echo "Site $SITE_DOMAIN exists. Running migrations..."
+        docker compose exec -T backend bench --site "$SITE_DOMAIN" $INSTALL_APP_ARGS || true
+        docker compose exec -T backend bench --site "$SITE_DOMAIN" migrate
+        echo "Migrations completed for existing site!"
     else
-        echo "Waiting for backend... ($i/10)"
-        sleep 10
+        echo "Provisioning new site: $SITE_DOMAIN..."
+        echo "This may take 5-10 minutes..."
+        
+        # Create new site with all apps
+        docker compose exec -T backend bench new-site "$SITE_DOMAIN" \
+            --admin-password "$ADMIN_PASSWORD" \
+            --root-login root \
+            --root-password "$MYSQL_ROOT_PASSWORD" \
+            $INSTALL_APP_ARGS \
+            --set-default
+        
+        echo "New site created successfully!"
     fi
-done
-
-# Check if site exists and create/update accordingly
-if docker compose exec -T backend bench list-sites 2>/dev/null | grep -q "$SITE_DOMAIN"; then
-    echo "Site $SITE_DOMAIN exists. Running migrations..."
-    docker compose exec -T backend bench --site "$SITE_DOMAIN" install-app erpnext hrms insights || true
-    docker compose exec -T backend bench --site "$SITE_DOMAIN" migrate
-    echo "Migrations completed for existing site!"
-else
-    echo "Provisioning new site: $SITE_DOMAIN..."
-    echo "This may take 5-10 minutes..."
-    
-    # Create new site with all apps
-    docker compose exec -T backend bench new-site "$SITE_DOMAIN" \
-        --admin-password "$ADMIN_PASSWORD" \
-        --root-login root \
-        --root-password "$MYSQL_ROOT_PASSWORD" \
-        --install-app erpnext \
-        --install-app hrms \
-        --install-app insights \
-        --set-default
-    
-    echo "New site created successfully!"
-fi
 
 echo "=========================================="
 echo "Setup Complete!"
-echo "Access URL: http://localhost:8080"
+echo "Frappe URL: http://localhost:$FRAPPE_PORT"
+echo "Keycloak URL: http://localhost:$KC_PORT"
 echo "Site Domain: $SITE_DOMAIN"
 echo "Username: Administrator"
 echo "Password: $ADMIN_PASSWORD"

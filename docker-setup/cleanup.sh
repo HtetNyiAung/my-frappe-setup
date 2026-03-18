@@ -6,7 +6,7 @@ set -e
 # --- 1. Load Environment Variables ---
 # We check for the .env file to ensure we have the correct STACK_ID and image names.
 if [ -f .env ]; then 
-    export $(grep -v '^#' .env | xargs)
+    export $(grep -v '^#' .env | sed 's/\s*#.*$//' | xargs)
 else 
     echo "❌ Error: .env file missing. Cleanup aborted to prevent accidental deletions."
     exit 1
