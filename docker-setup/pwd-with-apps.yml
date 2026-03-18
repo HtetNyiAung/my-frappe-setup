@@ -128,6 +128,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ./frappe.conf.template:/templates/nginx/frappe.conf.template
     ports:
       - "${FRAPPE_PORT}:${FRAPPE_INTERNAL_PORT}"
 
