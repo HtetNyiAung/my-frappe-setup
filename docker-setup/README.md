@@ -54,7 +54,7 @@ By default, the services will be available at:
 This stack natively supports authenticating Frappe users via Keycloak!
 
 If you are setting this up for the first time or need to rebuild the SSO bridge, read the dedicated guide located here:
-👉 **[Keycloak to Frappe Setup Guide](keycloak-frappe-setup-guide.md)**
+👉 **[Keycloak to Frappe Setup Guide](docs/keycloak-frappe-setup-guide.md)**
 
 ---
 

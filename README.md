@@ -20,10 +20,10 @@ See **[docker-setup/README.md](docker-setup/README.md)** for complete installati
 
 To make maintaining the setup easier, several utility scripts are provided inside the `docker-setup` directory:
 
-- **`./logs.sh`** : Tails the logs for both the Frappe and Keycloak stacks simultaneously.
-- **`./backup.sh`** : Automatically triggers a Frappe site backup and pulls the dumped SQL/files directly to your host machine in a timestamped folder.
-- **`./cleanup.sh`** : Restarts containers and removes dangling or orphaned resources.
-- **`./restore.sh <path>`** : Restores a Frappe database dump directly into the running database container.
+- **[`./logs.sh`](docker-setup/docs/logs.md)** : Tails the logs for both the Frappe and Keycloak stacks simultaneously.
+- **[`./backup.sh`](docker-setup/docs/backup.md)** : Automatically triggers a Frappe site backup and pulls the dumped SQL/files directly to your host machine in a timestamped folder.
+- **[`./cleanup.sh`](docker-setup/docs/cleanup.md)** : Restarts containers and removes dangling or orphaned resources.
+- **[`./restore.sh <path>`](docker-setup/docs/restore.md)** : Restores a Frappe database dump directly into the running database container.
 
 ## Project Structure
 
@@ -33,7 +33,13 @@ my-frappe-setup/
 │   ├── .env.example             # Configuration template
 │   ├── pwd-with-apps.yml        # Frappe Docker Compose
 │   ├── docker-compose.keycloak.yml # Keycloak Docker Compose
-│   ├── keycloak-frappe-setup-guide.md # SSO Integration Documentation
+│   ├── docs/                    # Extensive documentation
+│   │   ├── keycloak-frappe-setup-guide.md
+│   │   ├── setup.md
+│   │   ├── backup.md
+│   │   ├── restore.md
+│   │   ├── logs.md
+│   │   └── cleanup.md
 │   ├── setup.sh                 # Stack initial build and provision
 │   ├── cleanup.sh               # Container cleanup utility
 │   ├── backup.sh                # Container backup utility
