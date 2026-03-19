@@ -12,6 +12,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
     environment:
       DB_HOST: db
       DB_PORT: "3306"
@@ -47,6 +48,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
 
   create-site:
     image: frappe-erpnext-hrms-insights:v16
@@ -62,6 +64,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
     entrypoint:
       - bash
       - -c
@@ -147,6 +150,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
     environment:
       FRAPPE_REDIS_CACHE: redis://redis-cache:6379
       FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
@@ -166,6 +170,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
     environment:
       FRAPPE_REDIS_CACHE: redis://redis-cache:6379
       FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
@@ -201,6 +206,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
 
   websocket:
     image: frappe-erpnext-hrms-insights:v16
@@ -218,6 +224,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
 
 volumes:
   db-data:

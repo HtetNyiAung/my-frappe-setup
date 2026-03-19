@@ -10,5 +10,10 @@
   {
     "url": "https://github.com/frappe/insights",
     "branch": "develop"
+  },
+  {
+    "name": "mdea_custom",
+    "branch": "main",
+    "path": "apps/mdea_custom"
   }
 ]

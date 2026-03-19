@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 
-# Purpose: Build custom Docker image and initialize a Frappe site
+# Purpose: Build custom Docker image and initialize a Frappe site with custom apps
 set -e
 
-# --- 1. Load Environment Variables ---
+# --- 1. Manage Submodules ---
+echo "Updating git submodules..."
+git submodule update --init --recursive
+
+# --- 2. Load Environment Variables ---
 if [ -f .env ]; then 
     export $(grep -v '^#' .env | sed 's/\s*#.*$//' | xargs)
     echo "Environment variables loaded from .env"
@@ -18,12 +22,12 @@ echo "=========================================="
 echo "Initializing Project: $STACK_ID"
 echo "=========================================="
 
-# --- 2. Verify Docker Status ---
+# --- 3. Verify Docker Status ---
 if ! docker info > /dev/null 2>&1; then
     echo "Error: Docker is not running. Please start Docker/WSL2."; exit 1
 fi
 
-# --- 3. Manage frappe_docker Repository ---
+# --- 4. Manage frappe_docker Repository ---
 FRAPPE_PATH="$SCRIPT_DIR/frappe_docker"
 if [ ! -d "$FRAPPE_PATH" ]; then
     echo "Cloning frappe_docker dependencies..."
@@ -33,7 +37,7 @@ else
     (cd "$FRAPPE_PATH" && git pull)
 fi
 
-# --- 4. Build Custom Docker Image ---
+# --- 5. Build Custom Docker Image ---
 echo "Building Image: $CUSTOM_IMAGE"
 cp "$SCRIPT_DIR/apps.json" "$FRAPPE_PATH/apps.json"
 cd "$FRAPPE_PATH"
@@ -41,7 +45,7 @@ cd "$FRAPPE_PATH"
 # Encode apps.json to Base64 for Docker build context
 APPS_JSON_BASE64=$(base64 -w 0 apps.json 2>/dev/null || base64 apps.json | tr -d '\n')
 
-# Build using Python 3.11 for Frappe v16 compatibility
+# Build custom image
 docker build \
     --build-arg FRAPPE_BRANCH="$FRAPPE_BRANCH" \
     --build-arg APPS_JSON_BASE64="$APPS_JSON_BASE64" \
@@ -50,56 +54,57 @@ docker build \
 
 cd "$SCRIPT_DIR"
 
-# --- 5. Orchestrate Containers ---
+# --- 6. Orchestrate Containers ---
 echo "Starting containers via $COMPOSE_FILE..."
 docker compose -f "$COMPOSE_FILE" up -d
 echo "Waiting for services to stabilize (45s)..."
 sleep 45
 
-    # --- 6. Extract App Names from apps.json ---
-    APP_NAMES=$(grep -oP '"url":\s*"\K[^"]+' apps.json | awk -F'/' '{print $NF}')
-    INSTALL_APP_ARGS=""
-    for app in $APP_NAMES; do
-        INSTALL_APP_ARGS="${INSTALL_APP_ARGS} --install-app ${app}"
-    done
+# --- 7. Extract All App Names from apps.json ---
+# Improved logic: Extract "name" if present, otherwise extract from "url"
+APP_LIST=$(jq -r '.[] | if .name then .name else (.url | split("/") | last) end' apps.json | xargs)
+INSTALL_APP_ARGS=""
+for app in $APP_LIST; do
+    INSTALL_APP_ARGS="${INSTALL_APP_ARGS} --install-app ${app}"
+done
 
-    # --- 7. Dynamic Site Creation Logic ---
-    echo "Checking site status for domain: $SITE_DOMAIN"
-    
-    # Wait for backend to be ready
-    echo "Waiting for backend container to be ready..."
-    for i in {1..10}; do
-        if docker compose exec -T backend bench list-sites >/dev/null 2>&1; then
-            echo "Backend is ready!"
-            break
-        else
-            echo "Waiting for backend... ($i/10)"
-            sleep 10
-        fi
-    done
-    
-    # Check if site exists and create/update accordingly
-    if docker compose exec -T backend bench list-sites 2>/dev/null | grep -q "$SITE_DOMAIN"; then
-        echo "Site $SITE_DOMAIN exists. Updating apps and running migrations..."
-        # Correct syntax for install-app: no dash needed for existing site
-        APP_LIST=$(grep -oP '"url":\s*"\K[^"]+' apps.json | awk -F'/' '{print $NF}' | xargs)
-        docker compose exec -T backend bench --site "$SITE_DOMAIN" install-app $APP_LIST || true
-        docker compose exec -T backend bench --site "$SITE_DOMAIN" migrate
-        echo "Migrations completed for existing site!"
+# --- 8. Dynamic Site Creation & App Installation ---
+echo "Checking site status for domain: $SITE_DOMAIN"
+
+# Wait for backend to be ready
+echo "Waiting for backend container to be ready..."
+for i in {1..15}; do
+    if docker compose exec -T backend bench list-sites >/dev/null 2>&1; then
+        echo "Backend is ready!"
+        break
     else
-        echo "Provisioning new site: $SITE_DOMAIN..."
-        echo "This may take 5-10 minutes..."
-        
-        # Create new site with all apps
-        docker compose exec -T backend bench new-site "$SITE_DOMAIN" \
-            --admin-password "$ADMIN_PASSWORD" \
-            --root-login root \
-            --root-password "$MYSQL_ROOT_PASSWORD" \
-            $INSTALL_APP_ARGS \
-            --set-default
-        
-        echo "New site created successfully!"
+        echo "Waiting for backend... ($i/15)"
+        sleep 10
     fi
+done
+
+# Check if site exists
+if docker compose exec -T backend bench list-sites 2>/dev/null | grep -q "$SITE_DOMAIN"; then
+    echo "Site $SITE_DOMAIN exists. Installing apps and running migrations..."
+    docker compose exec -T backend bench --site "$SITE_DOMAIN" install-app $APP_LIST || true
+    docker compose exec -T backend bench --site "$SITE_DOMAIN" migrate
+    echo "App installation and migrations completed for existing site!"
+else
+    echo "Provisioning new site: $SITE_DOMAIN..."
+    echo "This may take 5-10 minutes..."
+    
+    # Create new site with all apps
+    docker compose exec -T backend bench new-site "$SITE_DOMAIN" \
+        --admin-password "$ADMIN_PASSWORD" \
+        --root-login root \
+        --root-password "$MYSQL_ROOT_PASSWORD" \
+        $INSTALL_APP_ARGS \
+        --set-default
+    
+    # Run migration one last time to be sure
+    docker compose exec -T backend bench --site "$SITE_DOMAIN" migrate
+    echo "New site created and migrated successfully!"
+fi
 
 echo "=========================================="
 echo "Setup Complete!"
@@ -108,12 +113,4 @@ echo "Keycloak URL: http://localhost:$KC_PORT"
 echo "Site Domain: $SITE_DOMAIN"
 echo "Username: Administrator"
 echo "Password: $ADMIN_PASSWORD"
-echo "=========================================="
-
-echo ""
-echo "To monitor site creation:"
-echo "  docker compose -f $COMPOSE_FILE logs -f create-site"
-echo ""
-echo "To stop all services:"
-echo "  docker compose -f $COMPOSE_FILE down"
 echo "=========================================="
