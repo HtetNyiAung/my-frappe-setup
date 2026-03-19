@@ -80,8 +80,10 @@ sleep 45
     
     # Check if site exists and create/update accordingly
     if docker compose exec -T backend bench list-sites 2>/dev/null | grep -q "$SITE_DOMAIN"; then
-        echo "Site $SITE_DOMAIN exists. Running migrations..."
-        docker compose exec -T backend bench --site "$SITE_DOMAIN" $INSTALL_APP_ARGS || true
+        echo "Site $SITE_DOMAIN exists. Updating apps and running migrations..."
+        # Correct syntax for install-app: no dash needed for existing site
+        APP_LIST=$(grep -oP '"url":\s*"\K[^"]+' apps.json | awk -F'/' '{print $NF}' | xargs)
+        docker compose exec -T backend bench --site "$SITE_DOMAIN" install-app $APP_LIST || true
         docker compose exec -T backend bench --site "$SITE_DOMAIN" migrate
         echo "Migrations completed for existing site!"
     else

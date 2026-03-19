@@ -196,27 +196,208 @@ You can configure Google Social Login inside Keycloak so users can log into Frap
 Now, when users click "Login with Keycloak" on the Frappe login page, they will see a **Google** button on the Keycloak screen to authenticate with their Gmail.
 
 ---
+---
 
-### Role Mapping (Keycloak Groups -> Frappe Roles)
-Instead of assigning a single default role, you can sync Keycloak Groups directly to Frappe Roles.
+## Part 4: Keycloak Role Management (Groups → Frappe Roles)
 
-**1. Keycloak Setup**
+This is the **recommended approach** for assigning roles. No Server Scripts needed — Keycloak Groups are directly mapped to Frappe Roles.
+
+### Understanding Frappe Role Types
+
+> [!IMPORTANT]
+> Not all Frappe roles give the same level of access. Choose roles carefully:
+
+| Role | Access Level | Description |
+|------|-------------|-------------|
+| **Customer** | Portal only | Can access `/me` (profile page), view orders, invoices. **Cannot** access `/desk` (backend dashboard). |
+| **Website User** | Portal only | Basic website access. |
+| **Employee** | Desk access | Can access `/desk` with limited permissions (HR, leave, attendance). |
+| **System Manager** | Full Desk access | **Full admin access** to everything. Use with caution! |
+| **Employee Self Service** | Desk access | Limited self-service access to HR features. |
+
+> [!WARNING]
+> If a user only has `Customer` role and tries to access `/desk`, they will get a **500 Server Error**. This is normal — `Customer` is a portal-only role.
+
+### Step 1: Create Groups in Keycloak
+
+Groups in Keycloak must have the **exact same name** as Frappe Roles. Create groups for each role you want to assign.
+
+1. Go to **Keycloak Admin** (`http://localhost:8686`).
+2. Make sure you are in the **frappe-realm**.
+3. Click **Groups** in the left sidebar.
+4. Click **Create group**.
+5. Create the following groups (one at a time):
+
+| Group Name | Purpose |
+|------------|---------|
+| `Customer` | Portal access for customers |
+| `Employee` | Desk access for employees |
+| `System Manager` | Full admin access (use sparingly) |
+
+> [!CAUTION]
+> Group names are **case-sensitive**! `customer` ≠ `Customer`. The name must match the Frappe Role exactly.
+
+### Step 2: Set Default Group (Auto-assign for New Users)
+
+So that every new user who registers via Keycloak automatically gets a role:
+
+1. Go to **Realm Settings** in the left sidebar.
+2. Click the **User registration** tab.
+3. Scroll down to the **Default groups** section.
+4. Click **Add group**.
+5. Select **Customer** (or whichever role you want as default).
+6. Click **Add**.
+
+Now, every new user who registers through Keycloak will automatically be added to the `Customer` group.
+
+### Step 3: Assign Existing Users to Groups
+
+For users who already exist in Keycloak:
+
+1. Go to **Users** in the left sidebar.
+2. Click on the user (e.g., **Ko Saw**).
+3. Click the **Groups** tab.
+4. Click **Join Group**.
+5. Select the appropriate group(s):
+   - `Customer` — for portal access only
+   - `Customer` + `Employee` — for both portal and desk access
+6. Click **Join**.
+
+> [!TIP]
+> A user can belong to **multiple groups**. For example, a user in both `Customer` and `Employee` groups will get both roles in Frappe.
+
+### Step 4: Configure the Group Membership Mapper
+
+This mapper tells Keycloak to include group names in the authentication token so Frappe can read them.
+
 1. Go to **Clients** > **frappe-client**.
-2. Click the **Client Scopes** tab.
+2. Click the **Client scopes** tab.
 3. Click the link for **frappe-client-dedicated**.
-4. Click **Add mapper** > **By configuration** > **Group Membership**.
+4. If a mapper already exists (e.g., `groups`), click on it to edit. Otherwise, click **Add mapper** > **By configuration** > **Group Membership**.
 5. Configure as follows:
-   - **Name**: `groups`
-   - **Token Claim Name**: `groups`
-   - **Full group path**: OFF
-   - **Add to ID token**: ON
-   - **Add to user info**: ON
+
+| Field | Value |
+|-------|-------|
+| **Name** | `groups` |
+| **Token Claim Name** | `roles` |
+| **Full group path** | **OFF** ⚠️ |
+| **Add to ID token** | **ON** |
+| **Add to access token** | **ON** |
+| **Add to userinfo** | **ON** |
+
 6. Click **Save**.
 
-**2. Frappe Setup**
-1. Go to your **Social Login Key** for Keycloak.
-2. Scroll down to the **Field Mapping** or **Profile Property** section.
-3. In the **Roles Property** field, type `groups`.
+> [!WARNING]
+> **Full group path MUST be OFF!** If it is ON, Keycloak sends `/Customer` instead of `Customer`, which will NOT match the Frappe role name and the role assignment will silently fail.
+
+### Step 5: Configure Frappe Social Login Key
+
+Tell Frappe where to find the roles in the Keycloak token:
+
+1. Log in to Frappe as **Administrator**.
+2. Go to **Social Login Key** > **Keycloak**.
+3. In the **User ID Property** field, set to `email`.
 4. Click **Save**.
 
-**How it works**: If a user is in a group named `System Manager` in Keycloak, they will automatically get the `System Manager` role in Frappe when they log in!
+### Step 6: Set Default Role in Portal Settings (Fallback)
+
+As an additional safety net, set a default role in Frappe for any user who signs up without specific roles:
+
+1. Go to `http://localhost:8787/app/portal-settings`.
+2. Set **Default Role** to `Customer`.
+3. Click **Save**.
+
+---
+
+### Troubleshooting Role Issues
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| User gets **500 Server Error** after login | User only has `Customer` role and tries to access `/desk` | Add `Employee` role (via Keycloak group or manually in Frappe) |
+| User gets **403 Not Permitted** | User has no roles at all | Check Keycloak Default Groups and Group Membership mapper |
+| User gets **"Not Permitted"** on OAuth callback | Server Script has a bug | Delete the Server Script, use Keycloak Groups instead |
+| Roles from Keycloak not appearing in Frappe | `Full group path` is ON, or mapper Token Claim Name doesn't match | Set `Full group path` to OFF, verify Token Claim Name is `roles` |
+| User sees only `/me` page (Settings) | User has portal-only role (Customer/Website User) | This is normal — add a desk-access role if needed |
+
+---
+---
+
+## Part 5: Server Script for Keycloak Role Sync (Optional)
+
+> [!NOTE]
+> This section is **optional**. If you followed Part 4 (Keycloak Groups → Frappe Roles), you do NOT need Server Scripts. Only use this if you need custom logic beyond simple group-to-role mapping.
+
+### 1. Enable Server Scripts Feature
+
+Server Scripts are disabled by default in Frappe. You must enable them first.
+
+**Option A: Enable for a specific site (recommended)**
+```bash
+# Inside Docker container
+docker compose exec -T backend bench --site frontend set-config server_script_enabled 1
+
+# Clear cache after enabling
+docker compose exec -T backend bench --site frontend clear-cache
+```
+
+**Option B: Enable globally for all sites**
+```bash
+docker compose exec -T backend bench set-config -g server_script_enabled 1
+docker compose exec -T backend bench --site frontend clear-cache
+```
+
+> [!IMPORTANT]
+> After running the command, **restart the backend** and **refresh the browser** (`Ctrl + F5`) to make the yellow warning bar disappear:
+> ```bash
+> docker compose restart backend
+> ```
+
+### 2. Create the Server Script
+
+1. Log in as **Administrator**.
+2. Go to **Build** > **Server Script** (or search for "Server Script" in the search bar).
+3. Click **+ Add Server Script**.
+4. Fill in the fields:
+
+| Field | Value |
+|-------|-------|
+| **Name** | `Keycloak Role Sync` |
+| **Script Type** | `DocType Event` |
+| **Reference Document Type** | `User` |
+| **DocType Event** | `Before Save` |
+| **Module (for export)** | *(Leave blank or select `Core`)* |
+
+5. In the **Script** field, paste the following code:
+
+```python
+# Keycloak Role Sync - Before Save on User
+# Uses 'doc' (NOT 'self') because Frappe Server Scripts
+# run in a sandboxed environment where 'doc' is the document variable.
+
+if doc.flags.get("social_login_data"):
+    remote_roles = doc.flags.social_login_data.get("roles") or []
+
+    added = False
+    for role_name in remote_roles:
+        doc.append("roles", {"role": role_name})
+        added = True
+
+    # If no roles from Keycloak, assign "Customer" as default
+    if not added:
+        doc.append("roles", {"role": "Customer"})
+```
+
+6. Click **Save**.
+
+> [!WARNING]
+> **Common Mistake**: Do NOT use `self` in Frappe Server Scripts. Always use `doc` to reference the current document. Using `self` will cause a **502 Bad Gateway** or **403 Not Permitted** error during login.
+
+### 3. Alternative: Set Default Role Without Server Script
+
+If you prefer not to use Server Scripts, you can set a default role using **Portal Settings**:
+
+1. Go to `http://localhost:8787/app/portal-settings`
+2. Set **Default Role** to `Customer`
+3. Click **Save**
+
+This will automatically assign the **Customer** role to all new users who sign up (including via Keycloak/Google).
