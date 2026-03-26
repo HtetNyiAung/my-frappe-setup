@@ -1,19 +1,33 @@
 [
   {
     "url": "https://github.com/frappe/erpnext",
-    "branch": "version-16"
+    "branch": "version-16",
+    "is_custom": false
   },
   {
     "url": "https://github.com/frappe/hrms",
-    "branch": "version-16"
+    "branch": "version-16",
+    "is_custom": false
   },
   {
     "url": "https://github.com/frappe/insights",
-    "branch": "develop"
+    "branch": "develop",
+    "is_custom": false
   },
   {
     "name": "mdea_custom",
+    "url": "https://github.com/HtetNyiAung/mdea_custom.git",
     "branch": "main",
-    "path": "apps/mdea_custom"
+    "is_custom": true
+  },
+  {
+    "url": "https://github.com/frappe/telephony",
+    "branch": "develop",
+    "is_custom": false
+  },
+  {
+    "url": "https://github.com/frappe/helpdesk",
+    "branch": "develop",
+    "is_custom": false
   }
 ]
