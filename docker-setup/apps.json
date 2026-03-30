@@ -19,15 +19,5 @@
     "url": "https://github.com/HtetNyiAung/mdea_custom.git",
     "branch": "main",
     "is_custom": true
-  },
-  {
-    "url": "https://github.com/frappe/telephony",
-    "branch": "develop",
-    "is_custom": false
-  },
-  {
-    "url": "https://github.com/frappe/helpdesk",
-    "branch": "develop",
-    "is_custom": false
   }
 ]
