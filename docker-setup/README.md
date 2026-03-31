@@ -40,6 +40,14 @@ chmod +x setup.sh logs.sh cleanup.sh backup.sh restore.sh
 # 2. Build the Frappe Image, provision the site, and start the Frappe stack
 ./setup.sh
 
+### Understanding `setup.sh` Commands
+
+*   **`./setup.sh` (Normal Case):**
+    Use this for standard daily operations. It **skips** the time-consuming Docker build if the image already exists. This makes it very fast and resilient to network/VPN issues while starting your containers.
+
+*   **`./setup.sh --rebuild` (Maintenance Case):**
+    Use this when you **need to update your apps** (like ERPNext, HRMS, or Insights) to their latest repository versions or when you have modified `apps.json`. It will force a complete fresh build of the Docker image.
+
 # 3. Start the Keycloak SSO server (Option 1)
 docker compose -f docker-compose.keycloak.yml up -d
 

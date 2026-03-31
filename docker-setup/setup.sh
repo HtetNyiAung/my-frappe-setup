@@ -60,21 +60,33 @@ echo "Updating git submodules (if any)..."
 git submodule update --init --recursive 2>/dev/null || true
 
 # --- 4. Build Custom Docker Image (All apps included) ---
-FRAPPE_PATH="$SCRIPT_DIR/frappe_docker"
-if [ ! -d "$FRAPPE_PATH" ]; then
-    git clone https://github.com/frappe/frappe_docker.git "$FRAPPE_PATH"
+# Skip build if image already exists (use ./setup.sh --rebuild to force)
+FORCE_REBUILD=false
+if [[ "${1:-}" == "--rebuild" ]]; then
+    FORCE_REBUILD=true
 fi
 
-cp "$SCRIPT_DIR/apps.json" "$FRAPPE_PATH/apps.json"
-cd "$FRAPPE_PATH"
-APPS_JSON_BASE64=$(base64 -w 0 apps.json 2>/dev/null || base64 apps.json | tr -d '\n')
+if docker image inspect "$CUSTOM_IMAGE" >/dev/null 2>&1 && [ "$FORCE_REBUILD" = false ]; then
+    echo "Image '$CUSTOM_IMAGE' already exists. Skipping build. (Use --rebuild to force)"
+else
+    FRAPPE_PATH="$SCRIPT_DIR/frappe_docker"
+    if [ ! -d "$FRAPPE_PATH" ]; then
+        git clone https://github.com/frappe/frappe_docker.git "$FRAPPE_PATH"
+    fi
 
-echo "Building Image: $CUSTOM_IMAGE"
-docker build \
-    --build-arg FRAPPE_BRANCH="$FRAPPE_BRANCH" \
-    --build-arg APPS_JSON_BASE64="$APPS_JSON_BASE64" \
-    --tag "$CUSTOM_IMAGE" \
-    --file images/custom/Containerfile .
+    cp "$SCRIPT_DIR/apps.json" "$FRAPPE_PATH/apps.json"
+    cd "$FRAPPE_PATH"
+    APPS_JSON_BASE64=$(base64 -w 0 apps.json 2>/dev/null || base64 apps.json | tr -d '\n')
+
+    echo "Building Image: $CUSTOM_IMAGE"
+    docker build \
+        --build-arg FRAPPE_BRANCH="$FRAPPE_BRANCH" \
+        --build-arg APPS_JSON_BASE64="$APPS_JSON_BASE64" \
+        --tag "$CUSTOM_IMAGE" \
+        --file images/custom/Containerfile .
+
+    cd "$SCRIPT_DIR"
+fi
 
 cd "$SCRIPT_DIR"
 
