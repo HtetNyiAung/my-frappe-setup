@@ -45,6 +45,8 @@ services:
       AUTHENTIK_POSTGRESQL__USER: ${AUTHENTIK_DB_USER:-authentik}
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD:-authentik_password}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD:-admin}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL:-admin@example.com}
       # Email settings (optional, but recommended)
       # AUTHENTIK_EMAIL__HOST: ${AUTHENTIK_EMAIL_HOST}
       # AUTHENTIK_EMAIL__PORT: ${AUTHENTIK_EMAIL_PORT}
@@ -80,6 +82,8 @@ services:
       AUTHENTIK_POSTGRESQL__USER: ${AUTHENTIK_DB_USER:-authentik}
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD:-authentik_password}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD:-admin}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL:-admin@example.com}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./authentik_media:/media

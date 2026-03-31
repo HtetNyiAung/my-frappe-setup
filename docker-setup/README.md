@@ -8,8 +8,9 @@ This repository uses Docker Compose to orchestrate:
 - **Frappe Framework** (ERPNext, HRMS, Insights - v16)
 - **MariaDB** (Database)
 - **Redis** (Cache & Queue)
-- **Keycloak** (Identity & Access Management SSO)
-- **PostgreSQL** (Keycloak-specific Database)
+- **Keycloak** (Identity & Access Management SSO - Option 1)
+- **Authentik** (Identity Provider SSO - Option 2)
+- **PostgreSQL** (SSO-specific Database)
 
 All services communicate securely over internal Docker bridge networks, keeping your databases safely isolated from the public internet.
 
@@ -39,22 +40,26 @@ chmod +x setup.sh logs.sh cleanup.sh backup.sh restore.sh
 # 2. Build the Frappe Image, provision the site, and start the Frappe stack
 ./setup.sh
 
-# 3. Start the Keycloak SSO server
+# 3. Start the Keycloak SSO server (Option 1)
 docker compose -f docker-compose.keycloak.yml up -d
+
+# OR Start the Authentik SSO server (Option 2)
+docker compose -f docker-compose.authentik.yml up -d
 ```
 
 ### 4. Access the Services
 By default, the services will be available at:
 - **ERPNext / Frappe**: `http://localhost:8787` (Default Admin: `Administrator` / `admin`)
 - **Keycloak Admin**: `http://localhost:8686/auth` (Default Admin: `admin` / `admin`)
+- **Authentik Admin**: `http://localhost:9000` (Default Admin: `akadmin` / `admin`)
 
 ---
 
-## 🔐 Keycloak SSO Integration
-This stack natively supports authenticating Frappe users via Keycloak!
+## 🔐 SSO Integration Guides
+This stack natively supports authenticating Frappe users via either Keycloak or Authentik! Read the dedicated setup guide for your preferred provider:
 
-If you are setting this up for the first time or need to rebuild the SSO bridge, read the dedicated guide located here:
-👉 **[Keycloak to Frappe Setup Guide](docs/keycloak-frappe-setup-guide.md)**
+*   👉 **[Keycloak to Frappe Setup Guide](docs/keycloak-frappe-setup-guide.md)**
+*   👉 **[Authentik to Frappe Setup Guide](docs/authentik-frappe-setup-guide.md)**
 
 ---
 

@@ -31,6 +31,9 @@ AUTHENTIK_DB_USER=authentik
 # RUN: openssl rand -base64 64 | tr -d '\n' to generate a secret key
 AUTHENTIK_SECRET_KEY=yoursecretkey_replacethis
 AUTHENTIK_TAG=2024.12.3
+# Initial login credentials
+AUTHENTIK_BOOTSTRAP_PASSWORD=admin
+AUTHENTIK_BOOTSTRAP_EMAIL=admin@example.com
 ```
 
 *   **`AUTHENTIK_SECRET_KEY`**: This is critical for security. Make sure you generate a strong, unique secret key. If you change this later, existing sessions and some encrypted configurations may become corrupted.
@@ -53,10 +56,14 @@ docker compose -f pwd-with-apps.yml -f docker-compose.authentik.yml up -d
 ### Step 2: Accessing the Dashboard
 
 Ensure both Frappe (Port `8787`) and Authentik (Port `9000`) containers are running. 
-Once the services are fully started, you can access the initial setup and dashboard at:
-*   [http://localhost:9000/if/flow/initial-setup/](http://localhost:9000/if/flow/initial-setup/)
+Once the services are fully started, you can access the dashboard at:
+*   [http://localhost:9000/](http://localhost:9000/)
 
-This initial setup flow will prompt you to configure the `akadmin` user (the default superuser account).
+Log in using the default `akadmin` superuser and the credentials you configured in your `.env` file:
+*   **Username**: `akadmin` (or the email defined in `AUTHENTIK_BOOTSTRAP_EMAIL`)
+*   **Password**: The value of `AUTHENTIK_BOOTSTRAP_PASSWORD` in your `.env` file.
+
+*(Note: If you didn't set bootstrap credentials in your `.env` file, you must go to [http://localhost:9000/if/flow/initial-setup/](http://localhost:9000/if/flow/initial-setup/) to set the `akadmin` password manually.)*
 
 ## Volumes & State
 
@@ -66,6 +73,29 @@ State is stored using standard Docker named volumes and local mounts:
 *   `./authentik_media`: Holds custom branding media / icons uploaded to Authentik.
 *   `./authentik_custom_templates`: Holds override templates for the Authentik UI.
 *   `./authentik_certs`: Holds certificates / keys generated or uploaded to Authentik.
+
+## Troubleshooting
+
+### Reset `akadmin` Password
+
+If you forgot your `akadmin` password or need to recover admin access, run the following command to interactively set a new password:
+
+```bash
+docker compose -f docker-compose.authentik.yml exec authentik-server python3 manage.py changepassword akadmin
+```
+
+> **Note:** This command will prompt you to enter and confirm the new password in your terminal. The Authentik server container must be running for this to work.
+
+### Fix Permission Denied on `/media/public`
+
+If `authentik-server` fails with `PermissionError: [Errno 13] Permission denied: '/media/public'`, fix the folder permissions from the host:
+
+```bash
+sudo chmod -R 777 ./authentik_media ./authentik_certs ./authentik_custom_templates
+docker restart authentik-server authentik-worker
+```
+
+---
 
 ## Additional Commands
 

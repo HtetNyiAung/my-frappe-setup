@@ -18,6 +18,11 @@ cd "$SCRIPT_DIR"
 echo "Checking apps from apps.json for custom development apps..."
 mkdir -p ../apps
 
+# --- 2. Fix Directory Permissions for Authentik (Local Dev Only) ---
+echo "Configuring permissions for local volume folders..."
+mkdir -p ./authentik_media ./authentik_certs ./authentik_custom_templates
+chmod -R 777 ./authentik_media ./authentik_certs ./authentik_custom_templates 2>/dev/null || true
+
 OVERRIDE_FILE="docker-compose.override.yml"
 echo "services:" > $OVERRIDE_FILE
 SERVICES=("backend" "configurator" "create-site" "queue-long" "queue-short" "scheduler" "websocket")
@@ -73,12 +78,16 @@ docker build \
 
 cd "$SCRIPT_DIR"
 
-# --- 5. Start Containers ---
-# Start combining standard compose + generated overrides
+# Build dynamic compose command
+COMPOSE_CMD=("docker" "compose" "-f" "$COMPOSE_FILE" "-f" "$OVERRIDE_FILE")
+
 echo "Starting containers..."
-docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" up -d
+"${COMPOSE_CMD[@]}" up -d
 echo "Waiting for stabilization (45s)..."
+# "${COMPOSE_CMD[@]}" logs -f --tail 50 authentik-server & # Show brief logs to see progress
+# SERVER_PID=$!
 sleep 45
+# kill $SERVER_PID 2>/dev/null || true
 
 # --- 6. Site Creation & App Installation ---
 APP_LIST=$(jq -r '.[] | if .name then .name else (.url | split("/") | last | split(".") | first) end' apps.json | xargs)
@@ -86,7 +95,7 @@ echo "Installing apps to site: $APP_LIST"
 
 # Wait for backend
 for i in {1..15}; do
-    if docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" exec -T backend bench list-sites >/dev/null 2>&1; then
+    if "${COMPOSE_CMD[@]}" exec -T backend bench list-sites >/dev/null 2>&1; then
         echo "Backend is ready!"
         break
     fi
@@ -95,14 +104,14 @@ for i in {1..15}; do
 done
 
 # Run installation/migration via the override context
-if docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" exec -T backend bench list-sites | grep -q "$SITE_DOMAIN"; then
-    docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" exec -T backend bench --site "$SITE_DOMAIN" install-app $APP_LIST || true
-    docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" exec -T backend bench --site "$SITE_DOMAIN" migrate
+if "${COMPOSE_CMD[@]}" exec -T backend bench list-sites | grep -q "$SITE_DOMAIN"; then
+    "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" install-app $APP_LIST || true
+    "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" migrate
 else
     # new-site logic...
     INSTALL_ARGS=""
     for app in $APP_LIST; do INSTALL_ARGS="${INSTALL_ARGS} --install-app ${app}"; done
-    docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" exec -T backend bench new-site "$SITE_DOMAIN" \
+    "${COMPOSE_CMD[@]}" exec -T backend bench new-site "$SITE_DOMAIN" \
         --admin-password "$ADMIN_PASSWORD" --root-login root --root-password "$MYSQL_ROOT_PASSWORD" \
         $INSTALL_ARGS --set-default
 fi
