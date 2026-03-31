@@ -18,11 +18,6 @@ cd "$SCRIPT_DIR"
 echo "Checking apps from apps.json for custom development apps..."
 mkdir -p ../apps
 
-# --- 2. Fix Directory Permissions for Authentik (Local Dev Only) ---
-echo "Configuring permissions for local volume folders..."
-mkdir -p ./authentik_media ./authentik_certs ./authentik_custom_templates
-chmod -R 777 ./authentik_media ./authentik_certs ./authentik_custom_templates 2>/dev/null || true
-
 OVERRIDE_FILE="docker-compose.override.yml"
 echo "services:" > $OVERRIDE_FILE
 SERVICES=("backend" "configurator" "create-site" "queue-long" "queue-short" "scheduler" "websocket")
@@ -96,10 +91,7 @@ COMPOSE_CMD=("docker" "compose" "-f" "$COMPOSE_FILE" "-f" "$OVERRIDE_FILE")
 echo "Starting containers..."
 "${COMPOSE_CMD[@]}" up -d
 echo "Waiting for stabilization (45s)..."
-# "${COMPOSE_CMD[@]}" logs -f --tail 50 authentik-server & # Show brief logs to see progress
-# SERVER_PID=$!
 sleep 45
-# kill $SERVER_PID 2>/dev/null || true
 
 # --- 6. Site Creation & App Installation ---
 APP_LIST=$(jq -r '.[] | if .name then .name else (.url | split("/") | last | split(".") | first) end' apps.json | xargs)
@@ -129,3 +121,5 @@ else
 fi
 
 echo "Setup Complete!"
+echo "Installed Applications on $SITE_DOMAIN:"
+"${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" list-apps

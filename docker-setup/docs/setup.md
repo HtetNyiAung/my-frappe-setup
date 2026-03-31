@@ -37,3 +37,13 @@ chmod +x setup.sh
 -   `SITE_DOMAIN`: The name/URL of the Frappe site to create.
 -   `ADMIN_PASSWORD`: Password for the `Administrator` user.
 -   `MYSQL_ROOT_PASSWORD`: Required for database creation.
+
+## Verifying the Setup
+
+After setup is complete, you should verify if all the apps are installed correctly. Run the following command:
+
+```bash
+docker compose exec backend bench --site <your-site-domain> list-apps
+```
+
+This will list all the installed Frappe and ERPNext applications on your site.

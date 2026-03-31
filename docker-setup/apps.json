@@ -15,6 +15,11 @@
     "is_custom": false
   },
   {
+    "url": "https://github.com/frappe/payments",
+    "branch": "develop",
+    "is_custom": false
+  },
+  {
     "url": "https://github.com/frappe/lms",
     "branch": "main",
     "is_custom": false
@@ -26,7 +31,7 @@
   },
   {
     "url": "https://github.com/frappe/lending",
-    "branch": "develop",
+    "branch": "version-16-beta",
     "is_custom": false
   },
   {

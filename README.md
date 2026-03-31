@@ -12,6 +12,7 @@ A complete Docker-based development and deployment stack for **Frappe v16** with
 | **ERPNext** | version-16 | [frappe/erpnext](https://github.com/frappe/erpnext) | ERP system |
 | **HRMS** | version-16 | [frappe/hrms](https://github.com/frappe/hrms) | HR Management |
 | **Insights** | main | [frappe/insights](https://github.com/frappe/insights) | Data analytics |
+| **Payments** | version-16 | [frappe/payments](https://github.com/frappe/payments) | Payments integration |
 | **LMS** | main | [frappe/lms](https://github.com/frappe/lms) | Learning Management System |
 | **CRM** | main | [frappe/crm](https://github.com/frappe/crm) | Customer Relationship Management |
 | **Lending** | develop | [frappe/lending](https://github.com/frappe/lending) | Lending Management |
