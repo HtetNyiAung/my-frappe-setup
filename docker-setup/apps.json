@@ -11,7 +11,22 @@
   },
   {
     "url": "https://github.com/frappe/insights",
-    "branch": "version-16",
+    "branch": "main",
+    "is_custom": false
+  },
+  {
+    "url": "https://github.com/frappe/lms",
+    "branch": "main",
+    "is_custom": false
+  },
+  {
+    "url": "https://github.com/frappe/crm",
+    "branch": "main",
+    "is_custom": false
+  },
+  {
+    "url": "https://github.com/frappe/lending",
+    "branch": "develop",
     "is_custom": false
   },
   {

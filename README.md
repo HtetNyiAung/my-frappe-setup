@@ -11,7 +11,10 @@ A complete Docker-based development and deployment stack for **Frappe v16** with
 | **Frappe** | version-16 | Core Framework | Base framework |
 | **ERPNext** | version-16 | [frappe/erpnext](https://github.com/frappe/erpnext) | ERP system |
 | **HRMS** | version-16 | [frappe/hrms](https://github.com/frappe/hrms) | HR Management |
-| **Insights** | develop | [frappe/insights](https://github.com/frappe/insights) | Data analytics |
+| **Insights** | main | [frappe/insights](https://github.com/frappe/insights) | Data analytics |
+| **LMS** | main | [frappe/lms](https://github.com/frappe/lms) | Learning Management System |
+| **CRM** | main | [frappe/crm](https://github.com/frappe/crm) | Customer Relationship Management |
+| **Lending** | develop | [frappe/lending](https://github.com/frappe/lending) | Lending Management |
 | **Telephony** | develop | [frappe/telephony](https://github.com/frappe/telephony) | Call/SMS (Helpdesk dependency) |
 | **Helpdesk** | develop | [frappe/helpdesk](https://github.com/frappe/helpdesk) | Customer support |
 | **Mdea Custom** | main | [HtetNyiAung/mdea_custom](https://github.com/HtetNyiAung/mdea_custom) | Custom app (Member & Subscription) |
