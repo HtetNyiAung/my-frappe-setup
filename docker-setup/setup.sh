@@ -34,7 +34,7 @@ for row in $CUSTOM_APPS; do
     # 1. Clone only if missing on host
     if [ ! -d "$TARGET_DIR" ]; then
         echo "Found new custom app: $NAME ($URL). Cloning to host..."
-        git clone --branch "$BRANCH" "$URL" "$TARGET_DIR"
+        git clone --branch "$BRANCH" "$URL" "$TARGET_DIR" || echo "Warning: Failed to clone $NAME. Skipping volumes..."
     else
         echo "Custom app $NAME exists on host."
     fi
@@ -64,6 +64,12 @@ fi
 if docker image inspect "$CUSTOM_IMAGE" >/dev/null 2>&1 && [ "$FORCE_REBUILD" = false ]; then
     echo "Image '$CUSTOM_IMAGE' already exists. Skipping build. (Use --rebuild to force)"
 else
+    # Safety Backup before rebuild if site exists
+    if [ "$FORCE_REBUILD" = true ] && [ -f "./backup.sh" ]; then
+        echo "Rebuilding image... Taking a safety backup first..."
+        ./backup.sh || echo "Warning: Backup failed, but proceeding with rebuild..."
+    fi
+
     FRAPPE_PATH="$SCRIPT_DIR/frappe_docker"
     if [ ! -d "$FRAPPE_PATH" ]; then
         git clone https://github.com/frappe/frappe_docker.git "$FRAPPE_PATH"
@@ -109,15 +115,26 @@ done
 
 # Run installation/migration via the override context
 if "${COMPOSE_CMD[@]}" exec -T backend bench list-sites | grep -q "$SITE_DOMAIN"; then
-    "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" install-app $APP_LIST || true
+    echo "Site $SITE_DOMAIN exists. Installing/Updating apps one by one..."
+    for app in $APP_LIST; do
+        if [ "$app" != "frappe" ]; then
+            echo "Attempting to install $app..."
+            "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" install-app "$app" || echo "Error: Failed to install $app, skipping..."
+        fi
+    done
     "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" migrate
 else
-    # new-site logic...
-    INSTALL_ARGS=""
-    for app in $APP_LIST; do INSTALL_ARGS="${INSTALL_ARGS} --install-app ${app}"; done
+    echo "Creating new site: $SITE_DOMAIN..."
     "${COMPOSE_CMD[@]}" exec -T backend bench new-site "$SITE_DOMAIN" \
-        --admin-password "$ADMIN_PASSWORD" --root-login root --root-password "$MYSQL_ROOT_PASSWORD" \
-        $INSTALL_ARGS --set-default
+        --admin-password "$ADMIN_PASSWORD" --root-login root --root-password "$MYSQL_ROOT_PASSWORD" --set-default
+    
+    echo "Installing apps to new site..."
+    for app in $APP_LIST; do
+        if [ "$app" != "frappe" ] && [ "$app" != "erpnext" ]; then
+            echo "Attempting to install $app..."
+            "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" install-app "$app" || echo "Error: Failed to install $app, skipping..."
+        fi
+    done
 fi
 
 echo "Setup Complete!"
