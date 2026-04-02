@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # Purpose: Fully automated stack build with selective custom app mounting
-set -e
+# NOTE: We intentionally do NOT use 'set -e' so that individual app failures
+# don't kill the entire setup. Critical steps check errors explicitly.
 
 # --- 1. Load Environment Variables ---
 if [ -f .env ]; then 
@@ -34,7 +35,10 @@ for row in $CUSTOM_APPS; do
     # 1. Clone only if missing on host
     if [ ! -d "$TARGET_DIR" ]; then
         echo "Found new custom app: $NAME ($URL). Cloning to host..."
-        git clone --branch "$BRANCH" "$URL" "$TARGET_DIR" || echo "Warning: Failed to clone $NAME. Skipping volumes..."
+        if ! git clone --branch "$BRANCH" "$URL" "$TARGET_DIR"; then
+            echo "⚠️  Warning: Failed to clone $NAME. Skipping volume mount."
+            continue
+        fi
     else
         echo "Custom app $NAME exists on host."
     fi
@@ -80,11 +84,22 @@ else
     APPS_JSON_BASE64=$(base64 -w 0 apps.json 2>/dev/null || base64 apps.json | tr -d '\n')
 
     echo "Building Image: $CUSTOM_IMAGE"
-    docker build \
+    if ! docker build \
         --build-arg FRAPPE_BRANCH="$FRAPPE_BRANCH" \
         --build-arg APPS_JSON_BASE64="$APPS_JSON_BASE64" \
         --tag "$CUSTOM_IMAGE" \
-        --file images/custom/Containerfile .
+        --file images/custom/Containerfile .; then
+        echo ""
+        echo "❌ ============================================="
+        echo "❌  Docker image build FAILED!"
+        echo "❌  Check apps.json for invalid branches/URLs."
+        echo "❌  Common fix: ensure all app dependencies"
+        echo "❌  (like 'payments') are in apps.json with"
+        echo "❌  the correct branch."
+        echo "❌ ============================================="
+        cd "$SCRIPT_DIR"
+        exit 1
+    fi
 
     cd "$SCRIPT_DIR"
 fi
@@ -95,48 +110,98 @@ cd "$SCRIPT_DIR"
 COMPOSE_CMD=("docker" "compose" "-f" "$COMPOSE_FILE" "-f" "$OVERRIDE_FILE")
 
 echo "Starting containers..."
-"${COMPOSE_CMD[@]}" up -d
+if ! "${COMPOSE_CMD[@]}" up -d; then
+    echo ""
+    echo "❌ CRITICAL ERROR: Docker failed to start containers."
+    echo "Check if you have internet access or Docker credential issues."
+    echo "Common fix: run 'mv ~/.docker/config.json ~/.docker/config.json.bak'"
+    exit 1
+fi
 echo "Waiting for stabilization (45s)..."
 sleep 45
 
 # --- 6. Site Creation & App Installation ---
 APP_LIST=$(jq -r '.[] | if .name then .name else (.url | split("/") | last | split(".") | first) end' apps.json | xargs)
-echo "Installing apps to site: $APP_LIST"
+echo "Apps to install: $APP_LIST"
+
+# Track installation results
+INSTALL_OK=()
+INSTALL_FAIL=()
 
 # Wait for backend
+BACKEND_READY=false
 for i in {1..15}; do
     if "${COMPOSE_CMD[@]}" exec -T backend bench list-sites >/dev/null 2>&1; then
-        echo "Backend is ready!"
+        echo "✅ Backend is ready!"
+        BACKEND_READY=true
         break
     fi
     echo "Waiting for backend... ($i/15)"
     sleep 10
 done
 
-# Run installation/migration via the override context
+if [ "$BACKEND_READY" = false ]; then
+    echo "❌ Backend did not become ready in time. Aborting app installation."
+    exit 1
+fi
+
+# Run installation/migration
 if "${COMPOSE_CMD[@]}" exec -T backend bench list-sites | grep -q "$SITE_DOMAIN"; then
     echo "Site $SITE_DOMAIN exists. Installing/Updating apps one by one..."
     for app in $APP_LIST; do
-        if [ "$app" != "frappe" ]; then
-            echo "Attempting to install $app..."
-            "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" install-app "$app" || echo "Error: Failed to install $app, skipping..."
+        [ "$app" = "frappe" ] && continue
+        echo ""
+        echo "━━━ Installing: $app ━━━"
+        if "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" install-app "$app" 2>&1; then
+            echo "✅ $app installed successfully."
+            INSTALL_OK+=("$app")
+        else
+            echo "⚠️  $app failed to install. Continuing with remaining apps..."
+            INSTALL_FAIL+=("$app")
         fi
     done
-    "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" migrate
+    echo ""
+    echo "Running migrate..."
+    "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" migrate || echo "⚠️  Migration had warnings/errors."
 else
     echo "Creating new site: $SITE_DOMAIN..."
-    "${COMPOSE_CMD[@]}" exec -T backend bench new-site "$SITE_DOMAIN" \
-        --admin-password "$ADMIN_PASSWORD" --root-login root --root-password "$MYSQL_ROOT_PASSWORD" --set-default
-    
-    echo "Installing apps to new site..."
+    if ! "${COMPOSE_CMD[@]}" exec -T backend bench new-site "$SITE_DOMAIN" \
+        --admin-password "$ADMIN_PASSWORD" --root-login root --root-password "$MYSQL_ROOT_PASSWORD" --set-default; then
+        echo "❌ Failed to create site $SITE_DOMAIN. Aborting."
+        exit 1
+    fi
+
+    echo "Installing apps to new site one by one..."
     for app in $APP_LIST; do
-        if [ "$app" != "frappe" ] && [ "$app" != "erpnext" ]; then
-            echo "Attempting to install $app..."
-            "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" install-app "$app" || echo "Error: Failed to install $app, skipping..."
+        [ "$app" = "frappe" ] && continue
+        echo ""
+        echo "━━━ Installing: $app ━━━"
+        if "${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" install-app "$app" 2>&1; then
+            echo "✅ $app installed successfully."
+            INSTALL_OK+=("$app")
+        else
+            echo "⚠️  $app failed to install. Continuing with remaining apps..."
+            INSTALL_FAIL+=("$app")
         fi
     done
 fi
 
-echo "Setup Complete!"
-echo "Installed Applications on $SITE_DOMAIN:"
-"${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" list-apps
+# --- 7. Summary ---
+echo ""
+echo "══════════════════════════════════════════"
+echo "  Setup Complete! Site: $SITE_DOMAIN"
+echo "══════════════════════════════════════════"
+if [ ${#INSTALL_OK[@]} -gt 0 ]; then
+    echo "  ✅ Installed: ${INSTALL_OK[*]}"
+fi
+if [ ${#INSTALL_FAIL[@]} -gt 0 ]; then
+    echo "  ⚠️  Failed:    ${INSTALL_FAIL[*]}"
+    echo ""
+    echo "  To retry failed apps, run:"
+    for fail_app in "${INSTALL_FAIL[@]}"; do
+        echo "    docker compose exec backend bench --site $SITE_DOMAIN install-app $fail_app"
+    done
+fi
+echo ""
+echo "Currently installed apps:"
+"${COMPOSE_CMD[@]}" exec -T backend bench --site "$SITE_DOMAIN" list-apps || true

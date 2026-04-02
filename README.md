@@ -12,13 +12,10 @@ A complete Docker-based development and deployment stack for **Frappe v16** with
 | **ERPNext** | version-16 | [frappe/erpnext](https://github.com/frappe/erpnext) | ERP system |
 | **HRMS** | version-16 | [frappe/hrms](https://github.com/frappe/hrms) | HR Management |
 | **Insights** | main | [frappe/insights](https://github.com/frappe/insights) | Data analytics |
-| **Payments** | version-16 | [frappe/payments](https://github.com/frappe/payments) | Payments integration |
-| **LMS** | main | [frappe/lms](https://github.com/frappe/lms) | Learning Management System |
-| **CRM** | main | [frappe/crm](https://github.com/frappe/crm) | Customer Relationship Management |
-| **Lending** | develop | [frappe/lending](https://github.com/frappe/lending) | Lending Management |
-| **Telephony** | develop | [frappe/telephony](https://github.com/frappe/telephony) | Call/SMS (Helpdesk dependency) |
-| **Helpdesk** | develop | [frappe/helpdesk](https://github.com/frappe/helpdesk) | Customer support |
-| **Mdea Custom** | main | [HtetNyiAung/mdea_custom](https://github.com/HtetNyiAung/mdea_custom) | Custom app (Member & Subscription) |
+| **Insights** | main | [frappe/insights](https://github.com/frappe/insights) | Data analytics |
+| **CRM** | main | [frappe/crm](https://github.com/frappe/crm) | CRM system |
+| **Lending** | version-16-beta | [frappe/lending](https://github.com/frappe/lending) | Lending system |
+| **Mdea Custom** | main | [HtetNyiAung/mdea_custom](https://github.com/HtetNyiAung/mdea_custom) | Custom app |
 
 ---
 
@@ -46,6 +43,13 @@ sudo apt update && sudo apt upgrade -y
 
 # Install required dependencies (Including JQ for automation)
 sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release git jq
+
+# Install Node.js 22 LTS
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install global dependencies required by apps like 'drive'
+sudo npm install -g yarn pnpm
 
 # Add Docker's official GPG key
 sudo mkdir -p /etc/apt/keyrings
@@ -83,6 +87,7 @@ Everything is automated via the `setup.sh` script.
 
 3. **Run Initialization**:
    This script will automatically clone apps in `apps.json`, build images, and provision the site.
+   > 🚀 **New Feature:** The script now installs apps one-by-one and continues even if one fails, providing a summary report at the end.
    ```bash
    ./setup.sh
    ```
