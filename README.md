@@ -26,6 +26,7 @@ A complete Docker-based development and deployment stack for **Frappe v16** with
 |---------|-----|-------------|
 | **Frappe / ERPNext** | `http://localhost:8787` | `Administrator` / `admin` |
 | **Keycloak Admin** | `http://localhost:8686/auth` | `admin` / `admin` |
+| **Authentik Admin** | `http://localhost:9000/if/admin/` | `akadmin` / `YourAuthentikPassword` |
 
 ---
 
