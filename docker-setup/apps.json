@@ -29,5 +29,11 @@
     "url": "https://github.com/HtetNyiAung/mdea_custom.git",
     "branch": "main",
     "is_custom": true
+  },
+  {
+    "name": "changai",
+    "url": "https://github.com/ERPGulf/changAI.git",
+    "branch": "main",
+    "is_custom": true
   }
 ]

@@ -16,6 +16,7 @@ A complete Docker-based development and deployment stack for **Frappe v16** with
 | **CRM** | main | [frappe/crm](https://github.com/frappe/crm) | CRM system |
 | **Lending** | version-16-beta | [frappe/lending](https://github.com/frappe/lending) | Lending system |
 | **Mdea Custom** | main | [HtetNyiAung/mdea_custom](https://github.com/HtetNyiAung/mdea_custom) | Custom app |
+| **changAI** | main | [ERPGulf/changAI](https://github.com/ERPGulf/changAI) | AI Chat Module |
 
 ---
 
@@ -273,6 +274,7 @@ docker compose exec backend bash
 - **[Setup Guide](docker-setup/docs/setup.md)**
 - **[Keycloak SSO Integration Guide](docker-setup/docs/keycloak-frappe-setup-guide.md)**
 - **[Custom App Development Guide](docker-setup/docs/custom-app-setup-guide.md)**
+- **[changAI Setup Guide](docker-setup/docs/changai-setup-guide.md)**
 - **[Backup Guide](docker-setup/docs/backup.md)**
 - **[Restore Guide](docker-setup/docs/restore.md)**
 - **[Update Guide](docker-setup/docs/update.md)**
