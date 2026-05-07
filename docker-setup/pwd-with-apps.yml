@@ -12,7 +12,6 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
     environment:
       DB_HOST: db
       DB_PORT: "3306"
@@ -32,7 +31,8 @@ services:
       - -c
     command:
       - >
-        ls -1 apps > sites/apps.txt;
+        find apps -mindepth 2 -maxdepth 2 -name "__init__.py" | sed 's|apps/||;s|/__init__.py||' > sites/apps.txt;
+        echo "Installed apps:"; cat sites/apps.txt;
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;
         bench set-config -g redis_cache "redis://$$REDIS_CACHE";
@@ -48,7 +48,6 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
 
   create-site:
     image: frappe-erpnext-hrms-insights:v16
@@ -64,7 +63,6 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
     entrypoint:
       - bash
       - -c
@@ -84,7 +82,8 @@ services:
           fi;
         done;
         echo "sites/common_site_config.json found";
-        bench new-site --mariadb-user-host-login-scope='%' --admin-password=admin --db-root-username=root --db-root-password=admin --install-app erpnext --install-app hrms --install-app insights --set-default frontend;
+        # Site creation is handled by setup.sh to allow for better error handling and app installation
+        echo "Ready for site creation";
 
   db:
     image: mariadb:10.6
@@ -150,7 +149,6 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
     environment:
       FRAPPE_REDIS_CACHE: redis://redis-cache:6379
       FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
@@ -170,7 +168,6 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
     environment:
       FRAPPE_REDIS_CACHE: redis://redis-cache:6379
       FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
@@ -206,7 +203,6 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
 
   websocket:
     image: frappe-erpnext-hrms-insights:v16
@@ -224,7 +220,6 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
 
 volumes:
   db-data:
