@@ -31,7 +31,7 @@ services:
       - -c
     command:
       - >
-        find apps -mindepth 2 -maxdepth 2 -name "__init__.py" | sed 's|apps/||;s|/__init__.py||' > sites/apps.txt;
+        find apps -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort > sites/apps.txt;
         echo "Installed apps:"; cat sites/apps.txt;
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;

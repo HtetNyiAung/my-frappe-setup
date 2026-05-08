@@ -1,49 +1,234 @@
-# Setup Script (`setup.sh`)
+# Frappe Docker Setup
 
-The `setup.sh` script is the primary installation and initialization utility for the Frappe stack. It automates the building of the custom Docker image and the provisioning of the initial ERPNext site.
+`setup.sh` is the main setup script for this Frappe stack. It builds the custom image from `apps.json`, starts Docker Compose, creates or updates the site, installs apps one by one, repairs common database credential issues, and clears stale UI asset cache.
 
-## What it does
+## Quick Start
 
-1.  **Environment Check**: Verifies the presence of a `.env` file for configuration.
-2.  **Repository Sync**: Clones or updates the official `frappe_docker` repository which provides the build templates.
-3.  **Custom Image Build**: 
-    -   Reads your `apps.json` file.
-    -   Builds a custom Frappe Docker image (tagged as `CUSTOM_IMAGE` in `.env`) containing **ERPNext**, **HRMS**, and **Insights**.
-4.  **Orchestration**: Starts the Frappe containers using `docker compose`.
-5.  **Site Provisioning**:
-    -   Automatically checks if the site defined in `SITE_DOMAIN` already exists.
-    -   If it's a **new site**: Creates the site, sets the admin password, and installs the necessary apps.
-    -   If it's an **existing site**: Runs database migrations and ensures apps are installed.
-
-## Usage
+Run from the `docker-setup` folder:
 
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
-## Prerequisites
+Open the site:
 
--   A properly configured `.env` file.
--   An `apps.json` file listing the desired Frappe applications.
--   Docker and Docker Compose installed and running.
-
-## Environment Variables Used
-
--   `STACK_ID`: Used as the project name.
--   `CUSTOM_IMAGE`: The tag for the local Docker image.
--   `FRAPPE_BRANCH`: Which version of Frappe to build (e.g., `version-16`).
--   `COMPOSE_FILE`: Usually `pwd-with-apps.yml`.
--   `SITE_DOMAIN`: The name/URL of the Frappe site to create.
--   `ADMIN_PASSWORD`: Password for the `Administrator` user.
--   `MYSQL_ROOT_PASSWORD`: Required for database creation.
-
-## Verifying the Setup
-
-After setup is complete, you should verify if all the apps are installed correctly. Run the following command:
-
-```bash
-docker compose exec backend bench --site <your-site-domain> list-apps
+```text
+http://localhost:8787
 ```
 
-This will list all the installed Frappe and ERPNext applications on your site.
+## Normal Run vs Rebuild
+
+Use normal setup for most changes:
+
+```bash
+./setup.sh
+```
+
+The script checks whether the current Docker image already contains all apps from `apps.json`. If an app is missing, it rebuilds the image automatically.
+
+Use forced rebuild only when you want a fresh image:
+
+```bash
+./setup.sh --rebuild
+```
+
+Use `--rebuild` when:
+
+- You changed an app branch.
+- You want to refresh the image cache.
+- You suspect the current image is stale or broken.
+
+## apps.json
+
+`apps.json` controls which Frappe apps are included in the image and installed on the site.
+
+Current minimal example:
+
+```json
+[
+  {
+    "url": "https://github.com/frappe/erpnext",
+    "branch": "version-16",
+    "is_custom": false
+  },
+  {
+    "url": "https://github.com/frappe/hrms",
+    "branch": "version-16",
+    "is_custom": false
+  }
+]
+```
+
+For normal Frappe apps, set:
+
+```json
+"is_custom": false
+```
+
+For local development/custom apps, set:
+
+```json
+"is_custom": true
+```
+
+Custom apps are cloned into:
+
+```text
+docker-setup/frappe_docker/apps/<app-name>
+```
+
+Then `setup.sh` regenerates `docker-compose.override.yml` automatically and mounts those custom apps into the required containers. You do not need to manually edit `docker-compose.override.yml` for custom apps.
+
+## What setup.sh Does
+
+1. Checks required commands: `git`, `jq`, and `docker`.
+2. Loads `.env` safely.
+3. Validates required environment variables.
+4. Validates `apps.json`.
+5. Clones `frappe_docker` if it is missing.
+6. Clones custom apps from `apps.json`.
+7. Regenerates `docker-compose.override.yml`.
+8. Checks if the custom image already contains all apps.
+9. Builds or reuses the custom image.
+10. Starts Docker Compose.
+11. Refreshes `sites/apps.txt`.
+12. Creates the site if needed.
+13. Installs apps one by one.
+14. Runs migration for existing sites.
+15. Clears stale Frappe asset cache.
+16. Prints installed apps.
+
+## Required Environment Variables
+
+These values must exist in `.env`:
+
+```text
+CUSTOM_IMAGE
+FRAPPE_BRANCH
+COMPOSE_FILE
+SITE_DOMAIN
+ADMIN_PASSWORD
+MYSQL_ROOT_PASSWORD
+```
+
+Common values:
+
+```env
+CUSTOM_IMAGE=frappe-erpnext-hrms-insights:v16
+FRAPPE_BRANCH=version-16
+COMPOSE_FILE=pwd-with-apps.yml
+SITE_DOMAIN=frontend
+FRAPPE_PORT=8787
+FRAPPE_INTERNAL_PORT=8080
+MYSQL_ROOT_PASSWORD=admin
+MARIADB_ROOT_PASSWORD=admin
+ADMIN_PASSWORD=admin
+```
+
+## Database Credential Repair
+
+Sometimes Frappe can show this error:
+
+```text
+Access denied for user '<site-db-user>'@'<container-ip>'
+```
+
+This means the password in:
+
+```text
+sites/<site>/site_config.json
+```
+
+does not match the MariaDB user password.
+
+The setup script now detects this during `list-apps`, copies `repair_db_credentials.py` into the backend container, repairs the MariaDB user password/grants, and retries.
+
+Manual repair command:
+
+```bash
+docker compose -f pwd-with-apps.yml -f docker-compose.override.yml cp repair_db_credentials.py backend:/tmp/repair_db_credentials.py
+docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend /home/frappe/frappe-bench/env/bin/python /tmp/repair_db_credentials.py frontend
+```
+
+## Stale UI / Missing CSS Fix
+
+If the Desk UI looks like raw HTML, the browser is usually requesting old hashed CSS files.
+
+Example:
+
+```text
+/assets/frappe/dist/css/desk.bundle.OLDHASH.css 404
+```
+
+`setup.sh` now clears Frappe's cached `assets_json` and restarts:
+
+```text
+backend frontend websocket
+```
+
+This keeps the UI asset references synced with the current Docker image.
+
+After setup, if the browser still shows old UI, hard refresh:
+
+```text
+Ctrl + Shift + R
+```
+
+## Docker Credential Helper Error
+
+If Docker fails while pulling images:
+
+```text
+error getting credentials - err: exit status 1
+```
+
+Check:
+
+```bash
+cat ~/.docker/config.json
+```
+
+If it contains:
+
+```json
+{
+  "credsStore": "desktop.exe"
+}
+```
+
+replace it with:
+
+```bash
+cp ~/.docker/config.json ~/.docker/config.json.bak
+printf '{}\n' > ~/.docker/config.json
+```
+
+Then retry:
+
+```bash
+./setup.sh
+```
+
+## Verify Setup
+
+From `docker-setup`:
+
+```bash
+docker compose -f pwd-with-apps.yml -f docker-compose.override.yml ps
+docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend bench --site frontend list-apps
+```
+
+Expected installed apps:
+
+```text
+frappe
+erpnext
+hrms
+```
+
+## Notes
+
+- `docker-compose.override.yml` is generated by `setup.sh`. Do not manually maintain it for custom apps.
+- `docker-setup/frappe_docker/apps.json` is copied from `docker-setup/apps.json` during image build. Edit `docker-setup/apps.json`, not the generated copy.
+- HRMS patch messages like `rename_field ... not found` can appear during install. If the install continues and prints the success message, those warnings are usually safe.
