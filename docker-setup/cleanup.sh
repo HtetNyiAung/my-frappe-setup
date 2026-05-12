@@ -4,8 +4,11 @@
 set -e
 
 # --- 1. Load Environment Variables ---
-if [ -f .env ]; then 
-    export $(grep -v '^#' .env | sed 's/\s*#.*$//' | xargs)
+if [ -f .env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
 else 
     echo "❌ Error: .env file missing. Cleanup aborted."
     exit 1
@@ -15,6 +18,17 @@ STACK_ID=${STACK_ID:-frappe_stack}
 echo "=========================================="
 echo "⚠️  DANGER: FULL SYSTEM RESET - $STACK_ID"
 echo "=========================================="
+
+if [ "${FORCE_CLEANUP:-0}" != "1" ]; then
+    echo "This will stop containers and permanently delete Docker volumes/database data."
+    echo "To continue, type exactly: DELETE $STACK_ID"
+    read -r CONFIRM_CLEANUP
+
+    if [ "$CONFIRM_CLEANUP" != "DELETE $STACK_ID" ]; then
+        echo "Cleanup cancelled."
+        exit 1
+    fi
+fi
 
 # Collect all possible compose files
 COMPOSE_FILES=("-f" "$COMPOSE_FILE")

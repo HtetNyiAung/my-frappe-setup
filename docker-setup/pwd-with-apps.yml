@@ -1,25 +1,54 @@
-# Custom pwd.yml - ERPNext + HRMS + Insights
+# Custom pwd.yml - Frappe LMS
 # Override: Use custom-built image and install all apps during site creation
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-50m}
+    max-file: "${LOG_MAX_FILE:-5}"
 
 services:
   backend:
-    image: frappe-erpnext-hrms-insights:v16
+    image: ${CUSTOM_IMAGE}
+    logging: *default-logging
     networks:
       - frappe_network
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1', 8000), 5); s.close()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    stop_grace_period: 1m
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 512m
+        limits:
+          memory: 2g
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
     environment:
       DB_HOST: db
       DB_PORT: "3306"
-      MYSQL_ROOT_PASSWORD: admin
-      MARIADB_ROOT_PASSWORD: admin
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
 
   configurator:
-    image: frappe-erpnext-hrms-insights:v16
+    image: ${CUSTOM_IMAGE}
+    logging: *default-logging
     networks:
       - frappe_network
     working_dir: /home/frappe/frappe-bench
@@ -50,13 +79,20 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   create-site:
-    image: frappe-erpnext-hrms-insights:v16
+    image: ${CUSTOM_IMAGE}
+    logging: *default-logging
     networks:
       - frappe_network
     working_dir: /home/frappe/frappe-bench
     depends_on:
       configurator:
         condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
     deploy:
       restart_policy:
         condition: none
@@ -87,40 +123,67 @@ services:
 
   db:
     image: mariadb:10.6
+    logging: *default-logging
     networks:
       - frappe_network
     healthcheck:
-      test: mysqladmin ping -h localhost --password=admin
-      interval: 1s
-      retries: 20
+      test: mysqladmin ping -h localhost --password=$$MARIADB_ROOT_PASSWORD
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    stop_grace_period: 2m
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 512m
+        limits:
+          memory: 2g
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --skip-character-set-client-handshake
       - --skip-innodb-read-only-compressed
     environment:
-      MYSQL_ROOT_PASSWORD: admin
-      MARIADB_ROOT_PASSWORD: admin
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
     volumes:
       - db-data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3307:3306"
 
   frontend:
-    image: frappe-erpnext-hrms-insights:v16
+    image: ${CUSTOM_IMAGE}
+    logging: *default-logging
     networks:
       - frappe_network
     depends_on:
-      - websocket
+      backend:
+        condition: service_healthy
+      websocket:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1', 8080), 5); s.close()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    stop_grace_period: 1m
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 256m
+        limits:
+          memory: 1g
     command:
       - nginx-entrypoint.sh
     environment:
       BACKEND: backend:8000
-      FRAPPE_SITE_NAME_HEADER: frontend
+      FRAPPE_SITE_NAME_HEADER: ${SITE_DOMAIN}
       SOCKETIO: websocket:9000
       UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
@@ -132,15 +195,31 @@ services:
       - logs:/home/frappe/frappe-bench/logs
       - ./frappe.conf.template:/templates/nginx/frappe.conf.template
     ports:
-      - "${FRAPPE_PORT}:${FRAPPE_INTERNAL_PORT}"
+      - "${BIND_ADDRESS}:${FRAPPE_PORT}:${FRAPPE_INTERNAL_PORT}"
 
   queue-long:
-    image: frappe-erpnext-hrms-insights:v16
+    image: ${CUSTOM_IMAGE}
+    logging: *default-logging
     networks:
       - frappe_network
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    stop_grace_period: 1m
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 512m
+        limits:
+          memory: 2g
     command:
       - bench
       - worker
@@ -154,12 +233,28 @@ services:
       FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
 
   queue-short:
-    image: frappe-erpnext-hrms-insights:v16
+    image: ${CUSTOM_IMAGE}
+    logging: *default-logging
     networks:
       - frappe_network
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    stop_grace_period: 1m
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 256m
+        limits:
+          memory: 1g
     command:
       - bench
       - worker
@@ -174,29 +269,67 @@ services:
 
   redis-queue:
     image: redis:6.2-alpine
+    logging: *default-logging
     networks:
       - frappe_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 128m
+        limits:
+          memory: 512m
     volumes:
       - redis-queue-data:/data
 
   redis-cache:
     image: redis:6.2-alpine
+    logging: *default-logging
     networks:
       - frappe_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 128m
+        limits:
+          memory: 512m
 
   scheduler:
-    image: frappe-erpnext-hrms-insights:v16
+    image: ${CUSTOM_IMAGE}
+    logging: *default-logging
     networks:
       - frappe_network
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    stop_grace_period: 1m
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 256m
+        limits:
+          memory: 1g
     command:
       - bench
       - schedule
@@ -205,12 +338,32 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   websocket:
-    image: frappe-erpnext-hrms-insights:v16
+    image: ${CUSTOM_IMAGE}
+    logging: *default-logging
     networks:
       - frappe_network
+    depends_on:
+      configurator:
+        condition: service_completed_successfully
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1', 9000), 5); s.close()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    stop_grace_period: 1m
     deploy:
       restart_policy:
         condition: on-failure
+      resources:
+        reservations:
+          memory: 256m
+        limits:
+          memory: 1g
     command:
       - node
       - /home/frappe/frappe-bench/apps/frappe/socketio.js
