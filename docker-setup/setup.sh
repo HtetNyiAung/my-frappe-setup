@@ -316,6 +316,17 @@ print("Branding applied")
 	PY
 }
 
+apply_public_url() {
+    if [ -z "${PUBLIC_URL:-}" ]; then
+        return
+    fi
+
+    echo ""
+    echo "Applying public URL from .env..."
+    bench_site set-config host_name "$PUBLIC_URL"
+    echo "Public URL set to: $PUBLIC_URL"
+}
+
 # Repair a site database user when site_config.json and MariaDB passwords drift.
 repair_site_db_credentials() {
     if [ ! -f "$SCRIPT_DIR/repair_db_credentials.py" ]; then
@@ -761,6 +772,7 @@ main() {
     build_custom_image
     start_containers
     provision_site
+    apply_public_url
     apply_branding
     refresh_asset_cache
     print_summary
