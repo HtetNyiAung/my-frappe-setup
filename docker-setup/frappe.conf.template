@@ -17,6 +17,9 @@ server {
 	server_name ${FRAPPE_SITE_NAME_HEADER};
 	root /home/frappe/frappe-bench/sites;
 
+	absolute_redirect off;
+	port_in_redirect off;
+
 	proxy_buffer_size 128k;
 	proxy_buffers 4 256k;
 	proxy_busy_buffers_size 256k;

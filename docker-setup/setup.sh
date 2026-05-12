@@ -170,6 +170,8 @@ apply_branding() {
     compose_exec_backend env \
         PROJECT_NAME="${PROJECT_NAME:-}" \
         PRIMARY_COLOR="${PRIMARY_COLOR:-}" \
+        SYSTEM_LANGUAGE="${SYSTEM_LANGUAGE:-en}" \
+        SYSTEM_TIME_ZONE="${SYSTEM_TIME_ZONE:-Asia/Yangon}" \
         bench --site "$SITE_DOMAIN" console --autoreload <<-'PY' || true
 namespace = {}
 exec("""
@@ -178,6 +180,8 @@ import frappe
 
 project_name = os.environ.get("PROJECT_NAME", "").strip()
 primary_color = os.environ.get("PRIMARY_COLOR", "").strip()
+system_language = os.environ.get("SYSTEM_LANGUAGE", "en").strip() or "en"
+system_time_zone = os.environ.get("SYSTEM_TIME_ZONE", "Asia/Yangon").strip() or "Asia/Yangon"
 
 TEXT_FIELD_TYPES = {"Data", "Text", "Small Text", "Long Text", "Text Editor", "Code", "HTML", "Color"}
 SAFE_VALUE_FIELD_TYPES = TEXT_FIELD_TYPES | {"Check", "Int", "Float"}
@@ -185,13 +189,29 @@ SAFE_VALUE_FIELD_TYPES = TEXT_FIELD_TYPES | {"Check", "Int", "Float"}
 def get_field(meta, fieldname):
     return next((field for field in meta.fields if field.fieldname == fieldname), None)
 
+def ensure_system_settings_defaults(doc, meta):
+    changed = False
+
+    if get_field(meta, "language") and not doc.get("language"):
+        language = system_language
+        if not frappe.db.exists("Language", language):
+            language = "en"
+        doc.set("language", language)
+        changed = True
+
+    if get_field(meta, "time_zone") and not doc.get("time_zone"):
+        doc.set("time_zone", system_time_zone)
+        changed = True
+
+    return changed
+
 def set_existing_fields(doctype, values):
     if not frappe.db.exists("DocType", doctype):
         return
 
     meta = frappe.get_meta(doctype)
     doc = frappe.get_single(doctype)
-    changed = False
+    changed = ensure_system_settings_defaults(doc, meta) if doctype == "System Settings" else False
 
     for fieldname, value in values.items():
         field = get_field(meta, fieldname)
