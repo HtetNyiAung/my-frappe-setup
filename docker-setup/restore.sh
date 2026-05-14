@@ -1,66 +1,215 @@
 #!/usr/bin/env bash
-# Purpose: Restore a specific backup (SQL and Files) into the Frappe container
-# Usage: ./restore.sh ./backups/YYYY-MM-DD_HH-MM-SS
-set -e
+# Purpose: Restore a Frappe backup into the configured site.
+# Usage: ./restore.sh [--yes] [--skip-pre-backup] <path_to_backup_folder>
+set -Eeuo pipefail
 
-# --- 1. Load Environment Variables from .env ---
-if [ -f .env ]; then 
-    export $(grep -v '^#' .env | sed 's/\s*#.*$//' | xargs)
-else 
-    echo "Error: .env file missing. Restore aborted."; exit 1
+CALL_DIR="$(pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+YES=0
+SKIP_PRE_BACKUP=0
+BACKUP_SRC=""
+RESTORE_DIR="/tmp/restore_data_$(date +%Y%m%d_%H%M%S)"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  ./restore.sh [--yes] [--skip-pre-backup] <path_to_backup_folder>
+
+Examples:
+  ./restore.sh ./backups/2026-05-14_06-37-00
+  ./restore.sh ./backups/2026-05-14_06-37-00/backups
+  ./restore.sh --yes ./backups/2026-05-14_06-37-00/backups
+
+Options:
+  --yes              Do not ask for interactive confirmation.
+  --skip-pre-backup  Do not create a safety backup before restoring.
+
+Warning:
+  Restore is destructive. It overwrites the current site database.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --yes|-y)
+            YES=1
+            shift
+            ;;
+        --skip-pre-backup)
+            SKIP_PRE_BACKUP=1
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "Error: Unknown option: $1"
+            usage
+            exit 1
+            ;;
+        *)
+            if [ -n "$BACKUP_SRC" ]; then
+                echo "Error: Only one backup folder path is allowed."
+                usage
+                exit 1
+            fi
+            BACKUP_SRC="$1"
+            shift
+            ;;
+    esac
+done
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "Error: Required command '$1' is not installed or not in PATH."
+        exit 1
+    fi
+}
+
+load_env() {
+    set -a
+    # shellcheck disable=SC1091
+    source "$SCRIPT_DIR/.env"
+    local status=$?
+    set +a
+    return "$status"
+}
+
+require_env() {
+    local missing=()
+
+    for var_name in "$@"; do
+        if [ -z "${!var_name:-}" ]; then
+            missing+=("$var_name")
+        fi
+    done
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "Error: Missing required .env value(s): ${missing[*]}"
+        exit 1
+    fi
+}
+
+cleanup() {
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq "${BACKEND_CONTAINER:-}"; then
+        docker exec "$BACKEND_CONTAINER" rm -rf "$RESTORE_DIR" >/dev/null 2>&1 || true
+    fi
+}
+
+find_first() {
+    local folder="$1"
+    shift
+    find "$folder" "$@" -print -quit
+}
+
+require_command docker
+require_command find
+
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    if ! load_env; then
+        echo "Error: Failed to load $SCRIPT_DIR/.env. Check for invalid shell syntax."
+        exit 1
+    fi
+else
+    echo "Error: .env file missing. Restore aborted."
+    exit 1
 fi
 
-# Check if a backup directory was provided as an argument
-BACKUP_SRC=$1
+require_env BACKEND_CONTAINER SITE_DOMAIN
 
 if [ -z "$BACKUP_SRC" ]; then
-    echo "Usage: ./restore.sh <path_to_backup_folder>"
-    echo "Example: ./restore.sh ./backups/2026-03-11_21-00-00"
+    echo "Error: Backup folder path is required."
+    usage
     exit 1
 fi
 
 if [ ! -d "$BACKUP_SRC" ]; then
-    echo "Error: Backup directory $BACKUP_SRC not found."
+    if [ -d "$CALL_DIR/$BACKUP_SRC" ]; then
+        BACKUP_SRC="$CALL_DIR/$BACKUP_SRC"
+    else
+        echo "Error: Backup directory $BACKUP_SRC not found."
+        exit 1
+    fi
+fi
+
+if ! docker ps --format '{{.Names}}' | grep -Fxq "$BACKEND_CONTAINER"; then
+    echo "Error: Backend container '$BACKEND_CONTAINER' is not running."
+    exit 1
+fi
+
+SQL_FILE=$(find_first "$BACKUP_SRC" -type f -name "*database.sql.gz")
+PUBLIC_FILES=$(find_first "$BACKUP_SRC" -type f -name "*files.tar" ! -name "*private-files.tar")
+PRIVATE_FILES=$(find_first "$BACKUP_SRC" -type f -name "*private-files.tar")
+
+if [ -z "$SQL_FILE" ]; then
+    echo "Error: No database backup file matching '*database.sql.gz' found in $BACKUP_SRC"
     exit 1
 fi
 
 echo "=========================================="
-echo "Restoring Backup to Site: $SITE_DOMAIN"
-echo "Source Folder: $BACKUP_SRC"
+echo "Restore Target Site: $SITE_DOMAIN"
+echo "Source Folder:       $BACKUP_SRC"
+echo "Database Backup:     $SQL_FILE"
+echo "Public Files:        ${PUBLIC_FILES:-not found}"
+echo "Private Files:       ${PRIVATE_FILES:-not found}"
 echo "=========================================="
 
-# 2. Identify the SQL file inside the backup folder
-# Usually ends with -database.sql.gz
-SQL_FILE=$(find "$BACKUP_SRC" -name "*database.sql.gz" | head -n 1)
-
-if [ -z "$SQL_FILE" ]; then
-    echo "Error: No .sql.gz backup file found in $BACKUP_SRC"; exit 1
+if [ -z "$PUBLIC_FILES" ] || [ -z "$PRIVATE_FILES" ]; then
+    echo "Warning: Public and/or private file backup tar was not found."
+    echo "The database can still be restored, but uploaded PDFs/images/files may be missing."
 fi
 
-# 3. Prepare the container for the restore
+if [ "$YES" -ne 1 ]; then
+    echo
+    echo "This restore will overwrite the current database for site '$SITE_DOMAIN'."
+    read -r -p "Type RESTORE to continue: " CONFIRM
+    if [ "$CONFIRM" != "RESTORE" ]; then
+        echo "Restore cancelled."
+        exit 1
+    fi
+fi
+
+if [ "$SKIP_PRE_BACKUP" -ne 1 ]; then
+    echo "Creating safety backup before restore..."
+    "$SCRIPT_DIR/backup.sh"
+else
+    echo "Skipping pre-restore safety backup because --skip-pre-backup was provided."
+fi
+
+trap cleanup EXIT
+
 echo "Uploading backup files to container temporary storage..."
-docker exec "$BACKEND_CONTAINER" mkdir -p /tmp/restore_data
-docker cp "$BACKUP_SRC/." "$BACKEND_CONTAINER":/tmp/restore_data/
+docker exec "$BACKEND_CONTAINER" rm -rf "$RESTORE_DIR"
+docker exec "$BACKEND_CONTAINER" mkdir -p "$RESTORE_DIR"
+docker cp "$BACKUP_SRC/." "$BACKEND_CONTAINER":"$RESTORE_DIR"/
 
-# 4. Execute the Bench Restore
+INTERNAL_SQL_PATH=$(docker exec "$BACKEND_CONTAINER" find "$RESTORE_DIR" -type f -name "*database.sql.gz" -print -quit)
+INTERNAL_PUBLIC_FILES=$(docker exec "$BACKEND_CONTAINER" find "$RESTORE_DIR" -type f -name "*files.tar" ! -name "*private-files.tar" -print -quit)
+INTERNAL_PRIVATE_FILES=$(docker exec "$BACKEND_CONTAINER" find "$RESTORE_DIR" -type f -name "*private-files.tar" -print -quit)
 
-echo "Running bench restore (this will overwrite current data)..."
-SQL_BASE_NAME=$(basename "$SQL_FILE")
+RESTORE_ARGS=(--site "$SITE_DOMAIN" restore "$INTERNAL_SQL_PATH" --force)
 
-# We dynamically locate the SQL file inside the uploaded directory to ensure the path is foolproof
-INTERNAL_SQL_PATH=$(docker exec "$BACKEND_CONTAINER" find /tmp/restore_data -name "*.sql.gz" | head -n 1)
+if [ -n "$INTERNAL_PUBLIC_FILES" ]; then
+    RESTORE_ARGS+=(--with-public-files "$INTERNAL_PUBLIC_FILES")
+fi
 
-# Execute the restore
-docker exec -i "$BACKEND_CONTAINER" bash -c "bench --site '$SITE_DOMAIN' restore '$INTERNAL_SQL_PATH' --force"
+if [ -n "$INTERNAL_PRIVATE_FILES" ]; then
+    RESTORE_ARGS+=(--with-private-files "$INTERNAL_PRIVATE_FILES")
+fi
 
-# 5. Finalize with Migrations
+echo "Running bench restore. This will overwrite current site data..."
+docker exec -i "$BACKEND_CONTAINER" bench "${RESTORE_ARGS[@]}"
+
 echo "Finalizing restore and syncing schema..."
 docker exec "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" migrate
-
-# 6. Cleanup temporary files in the container
-docker exec "$BACKEND_CONTAINER" rm -rf /tmp/restore_data/
+docker exec "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" clear-cache
+docker exec "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" clear-website-cache
 
 echo "=========================================="
-echo "✅ RESTORE COMPLETE"
-echo "Site $SITE_DOMAIN has been successfully reverted."
+echo "RESTORE COMPLETE"
+echo "Site $SITE_DOMAIN has been restored."
+echo "A pre-restore safety backup was created unless --skip-pre-backup was used."
 echo "=========================================="
