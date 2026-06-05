@@ -512,7 +512,7 @@ generate_compose_override() {
     local svc
 
     OVERRIDE_FILE="$SCRIPT_DIR/docker-compose.override.yml"
-    SERVICES=("backend" "configurator" "create-site" "queue-long" "queue-short" "scheduler" "websocket")
+    SERVICES=("backend" "frontend" "configurator" "create-site" "queue-long" "queue-short" "scheduler" "websocket")
 
     if [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ]; then
         echo "services: {}" > "$OVERRIDE_FILE"
