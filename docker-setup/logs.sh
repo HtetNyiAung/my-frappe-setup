@@ -3,7 +3,9 @@
 
 # --- 1. Load Environment Variables ---
 if [ -f .env ]; then 
-    export $(grep -v '^#' .env | sed 's/\s*#.*$//' | xargs)
+    set -a
+    source .env
+    set +a
 else 
     echo "❌ Error: .env file missing."; exit 1
 fi
