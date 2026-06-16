@@ -11,6 +11,7 @@ services:
   backend:
     image: ${CUSTOM_IMAGE}
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     depends_on:
@@ -124,6 +125,7 @@ services:
   db:
     image: mariadb:10.6
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     healthcheck:
@@ -157,6 +159,7 @@ services:
   frontend:
     image: ${CUSTOM_IMAGE}
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     depends_on:
@@ -200,6 +203,7 @@ services:
   queue-long:
     image: ${CUSTOM_IMAGE}
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     depends_on:
@@ -235,6 +239,7 @@ services:
   queue-short:
     image: ${CUSTOM_IMAGE}
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     depends_on:
@@ -270,6 +275,7 @@ services:
   redis-queue:
     image: redis:6.2-alpine
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     healthcheck:
@@ -291,6 +297,7 @@ services:
   redis-cache:
     image: redis:6.2-alpine
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     healthcheck:
@@ -310,6 +317,7 @@ services:
   scheduler:
     image: ${CUSTOM_IMAGE}
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     depends_on:
@@ -340,6 +348,7 @@ services:
   websocket:
     image: ${CUSTOM_IMAGE}
     logging: *default-logging
+    restart: unless-stopped
     networks:
       - frappe_network
     depends_on:
