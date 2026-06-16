@@ -517,8 +517,8 @@ clone_custom_apps() {
             "$target_dir/scripts/verify_package_layout.sh" "$target_dir" || {
                 echo "⚠️  Warning: $name failed package layout verification."
             }
-        elif [ ! -f "$target_dir/parliament_bills/__init__.py" ]; then
-            echo "⚠️  Warning: $name is missing parliament_bills/__init__.py."
+        elif [ ! -f "$target_dir/$name/__init__.py" ] && [ ! -f "$target_dir/__init__.py" ]; then
+            echo "⚠️  Warning: $name is missing a Python package (__init__.py)."
             echo "    Run: git -C \"$target_dir\" fetch origin && git -C \"$target_dir\" reset --hard origin/$branch"
         fi
 
@@ -728,8 +728,9 @@ install_custom_apps_editable() {
         if compose_exec_backend bash -lc \
             "test -f apps/$app_name/pyproject.toml || test -f apps/$app_name/setup.py"; then
 
-            if ! compose_exec_backend bash -lc "test -f apps/$app_name/parliament_bills/__init__.py"; then
-                echo "❌ apps/$app_name/parliament_bills/__init__.py is missing in the container mount."
+            if ! compose_exec_backend bash -lc \
+                "test -f apps/$app_name/$app_name/__init__.py || test -f apps/$app_name/__init__.py"; then
+                echo "❌ apps/$app_name Python package is missing in the container mount."
                 echo "   Restore the git clone on the host, then rerun setup.sh."
                 continue
             fi
@@ -746,27 +747,44 @@ install_custom_apps_editable() {
     done
 }
 
+# Custom apps (apps.json is_custom: true) may define {app}.install.ensure_app_schema
+# for app-specific schema repair. Otherwise sync_for(app, force=True) is used.
+repair_custom_app_schema() {
+    local app_name=$1
+
+    bench_site execute "
+import importlib
+
+app_name = '$app_name'
+try:
+    module = importlib.import_module(f'{app_name}.install')
+except ImportError:
+    module = None
+
+if module and hasattr(module, 'ensure_app_schema'):
+    module.ensure_app_schema()
+else:
+    from frappe.model.sync import sync_for
+    sync_for(app_name, force=True)
+
+frappe.db.commit()
+" || echo "⚠️  Schema repair failed for $app_name."
+}
+
 repair_custom_apps_if_needed() {
     local app_name
-    local marker_doctype
+
+    if [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ]; then
+        return
+    fi
 
     for app_name in "${VALID_CUSTOM_APPS[@]}"; do
-        case "$app_name" in
-            parliament_bills) marker_doctype="Bill" ;;
-            *) continue ;;
-        esac
-
         if ! bench_site list-apps 2>/dev/null | awk '{print $1}' | grep -Fxq "$app_name"; then
             continue
         fi
 
-        if bench_site execute frappe.db.exists --args "[\"DocType\", \"$marker_doctype\"]" 2>/dev/null | grep -qx "$marker_doctype"; then
-            continue
-        fi
-
-        echo "Repairing $app_name: restoring missing DocTypes from app files..."
-        bench_site execute frappe.model.sync.sync_for --args "[\"$app_name\"]" --kwargs '{"force": 1}' \
-            || echo "⚠️  DocType repair failed for $app_name."
+        echo "Repairing $app_name schema (if needed)..."
+        repair_custom_app_schema "$app_name"
     done
 }
 
@@ -805,6 +823,11 @@ provision_site() {
 
     echo "Installing apps to new site one by one..."
     install_apps_one_by_one
+
+    echo ""
+    repair_custom_apps_if_needed
+    echo "Running migrate..."
+    bench_site migrate || echo "⚠️  Migration had warnings/errors."
 }
 
 print_summary() {
