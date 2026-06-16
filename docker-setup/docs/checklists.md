@@ -88,6 +88,9 @@ sudo certbot --nginx -d lms.example.com
 - [ ] System language is checked.
 - [ ] Time zone is checked.
 - [ ] Admin email is changed from default.
+- [ ] Outbound email configured (Gmail or Outlook) — [email-outlook-setup-guide.md](./email-outlook-setup-guide.md).
+- [ ] Test email sent from **Email Account** (Send Test Email).
+- [ ] Forgot password email tested on login page.
 - [ ] Instructor accounts are created.
 - [ ] Learner accounts are created or invited.
 - [ ] Courses are created.
@@ -153,6 +156,7 @@ cd docker-setup
 - [ ] Course content is visible to learners.
 - [ ] Program members can access assigned programs.
 - [ ] PDF downloads work.
+- [ ] Outbound email and password reset tested — [email-outlook-setup-guide.md](./email-outlook-setup-guide.md).
 - [ ] Backup is completed.
 - [ ] Restore procedure is known.
 - [ ] Support contact is ready for users.
@@ -165,6 +169,7 @@ cd docker-setup
 - Deployment Checklist = Frappe LMS run ဖြစ်လား စစ်ရန်။
 - Nginx And SSL Checklist = HTTPS domain အတွက် စစ်ရန်။
 - LMS Setup Checklist = Course, lesson, learner setup စစ်ရန်။
+- Email Checklist = Gmail သို့မဟုတ် Outlook SMTP + forgot password စစ်ရန် ([guide](./email-outlook-setup-guide.md))။
 - PDF Lesson Checklist = Learner PDF download လုပ်နိုင်လား စစ်ရန်။
 - Backup Checklist = Data backup ရှိလား စစ်ရန်။
 - Maintenance Checklist = Hosting ပြီးနောက် ပုံမှန်ထိန်းသိမ်းရန်။
