@@ -501,6 +501,25 @@ clone_custom_apps() {
             fi
         else
             echo "Custom app $name exists on host."
+            if [ -d "$target_dir/.git" ]; then
+                echo "Syncing $name from origin/$branch..."
+                if ! git -C "$target_dir" fetch origin "$branch"; then
+                    echo "⚠️  Warning: Failed to fetch $name. Using existing files."
+                elif ! git -C "$target_dir" reset --hard "origin/$branch"; then
+                    echo "⚠️  Warning: Failed to reset $name to origin/$branch."
+                else
+                    echo "✅ $name synced to origin/$branch"
+                fi
+            fi
+        fi
+
+        if [ -x "$target_dir/scripts/verify_package_layout.sh" ]; then
+            "$target_dir/scripts/verify_package_layout.sh" "$target_dir" || {
+                echo "⚠️  Warning: $name failed package layout verification."
+            }
+        elif [ ! -f "$target_dir/parliament_bills/__init__.py" ]; then
+            echo "⚠️  Warning: $name is missing parliament_bills/__init__.py."
+            echo "    Run: git -C \"$target_dir\" fetch origin && git -C \"$target_dir\" reset --hard origin/$branch"
         fi
 
         VALID_CUSTOM_APPS+=("$name")
@@ -696,6 +715,61 @@ refresh_sites_apps_txt() {
     fi
 }
 
+install_custom_apps_editable() {
+    local app_name
+
+    if [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ]; then
+        return
+    fi
+
+    echo "Installing volume-mounted custom apps in editable mode..."
+
+    for app_name in "${VALID_CUSTOM_APPS[@]}"; do
+        if compose_exec_backend bash -lc \
+            "test -f apps/$app_name/pyproject.toml || test -f apps/$app_name/setup.py"; then
+
+            if ! compose_exec_backend bash -lc "test -f apps/$app_name/parliament_bills/__init__.py"; then
+                echo "❌ apps/$app_name/parliament_bills/__init__.py is missing in the container mount."
+                echo "   Restore the git clone on the host, then rerun setup.sh."
+                continue
+            fi
+
+            if compose_exec_backend bash -lc \
+                "./env/bin/pip install --quiet -e apps/$app_name"; then
+                echo "✅ pip install -e apps/$app_name"
+            else
+                echo "⚠️  pip install failed for $app_name. Continuing..."
+            fi
+        else
+            echo "⚠️  $app_name has no pyproject.toml/setup.py. Skipping pip install."
+        fi
+    done
+}
+
+repair_custom_apps_if_needed() {
+    local app_name
+    local marker_doctype
+
+    for app_name in "${VALID_CUSTOM_APPS[@]}"; do
+        case "$app_name" in
+            parliament_bills) marker_doctype="Bill" ;;
+            *) continue ;;
+        esac
+
+        if ! bench_site list-apps 2>/dev/null | awk '{print $1}' | grep -Fxq "$app_name"; then
+            continue
+        fi
+
+        if bench_site execute frappe.db.exists --args "[\"DocType\", \"$marker_doctype\"]" 2>/dev/null | grep -qx "$marker_doctype"; then
+            continue
+        fi
+
+        echo "Repairing $app_name: restoring missing DocTypes from app files..."
+        bench_site execute frappe.model.sync.sync_for --args "[\"$app_name\"]" --kwargs '{"force": 1}' \
+            || echo "⚠️  DocType repair failed for $app_name."
+    done
+}
+
 provision_site() {
     INSTALL_OK=()
     INSTALL_FAIL=()
@@ -703,6 +777,7 @@ provision_site() {
 
     echo "Apps to install: $APP_LIST"
     wait_for_backend
+    install_custom_apps_editable
     refresh_sites_apps_txt
 
     if compose_exec_backend bench list-sites | grep -q "$SITE_DOMAIN"; then
@@ -710,6 +785,7 @@ provision_site() {
         install_apps_one_by_one
 
         echo ""
+        repair_custom_apps_if_needed
         echo "Running migrate..."
         bench_site migrate || echo "⚠️  Migration had warnings/errors."
         return
