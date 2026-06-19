@@ -143,7 +143,8 @@ refresh_asset_cache() {
     bench_site clear-cache || true
     bench_site clear-website-cache || true
 
-    bench_site console --autoreload <<-'PY' || true
+    {
+        bench_site console --autoreload <<-'PY'
 namespace = {}
 exec("""
 import frappe
@@ -154,7 +155,8 @@ frappe.client_cache.clear_cache()
 frappe.clear_cache()
 print("assets_json cache cleared")
 """, namespace, namespace)
-	PY
+PY
+    } || true
 
     "${COMPOSE_CMD[@]}" restart backend frontend websocket || true
 }
@@ -167,12 +169,13 @@ apply_branding() {
     echo ""
     echo "Applying branding from .env..."
 
-    compose_exec_backend env \
-        PROJECT_NAME="${PROJECT_NAME:-}" \
-        PRIMARY_COLOR="${PRIMARY_COLOR:-}" \
-        SYSTEM_LANGUAGE="${SYSTEM_LANGUAGE:-en}" \
-        SYSTEM_TIME_ZONE="${SYSTEM_TIME_ZONE:-Asia/Yangon}" \
-        bench --site "$SITE_DOMAIN" console --autoreload <<-'PY' || true
+    {
+        compose_exec_backend env \
+            PROJECT_NAME="${PROJECT_NAME:-}" \
+            PRIMARY_COLOR="${PRIMARY_COLOR:-}" \
+            SYSTEM_LANGUAGE="${SYSTEM_LANGUAGE:-en}" \
+            SYSTEM_TIME_ZONE="${SYSTEM_TIME_ZONE:-Asia/Yangon}" \
+            bench --site "$SITE_DOMAIN" console --autoreload <<-'PY'
 namespace = {}
 exec("""
 import os
@@ -313,7 +316,8 @@ if theme_name:
 frappe.db.commit()
 print("Branding applied")
 """, namespace, namespace)
-	PY
+PY
+    } || true
 }
 
 apply_public_url() {
@@ -672,7 +676,8 @@ start_containers() {
     echo "Starting containers..."
 
     up_args=("up" "-d")
-    if [ "$IMAGE_BUILT" = true ]; then
+    # Recreate when the image changed or custom app volume mounts must be applied.
+    if [ "$IMAGE_BUILT" = true ] || [ ${#VALID_CUSTOM_APPS[@]} -gt 0 ]; then
         up_args+=("--force-recreate")
     fi
 
@@ -717,6 +722,8 @@ refresh_sites_apps_txt() {
 
 install_custom_apps_editable() {
     local app_name
+    local app_dir
+    local bench_root="/home/frappe/frappe-bench"
 
     if [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ]; then
         return
@@ -725,24 +732,29 @@ install_custom_apps_editable() {
     echo "Installing volume-mounted custom apps in editable mode..."
 
     for app_name in "${VALID_CUSTOM_APPS[@]}"; do
+        app_dir="$bench_root/apps/$app_name"
+
+        if ! compose_exec_backend bash -lc \
+            "test -f \"$app_dir/$app_name/__init__.py\" || test -f \"$app_dir/__init__.py\""; then
+            echo "❌ $app_name Python package is missing in the container mount."
+            echo "   Expected: $app_dir/$app_name/__init__.py"
+            echo "   Restore the git clone on the host, then rerun setup.sh."
+            continue
+        fi
+
+        if ! compose_exec_backend bash -lc \
+            "test -f \"$app_dir/pyproject.toml\" || test -f \"$app_dir/setup.py\""; then
+            echo "⚠️  $app_name has no pyproject.toml/setup.py in the container mount."
+            echo "   Expected: $app_dir/pyproject.toml"
+            echo "   Skipping pip install."
+            continue
+        fi
+
         if compose_exec_backend bash -lc \
-            "test -f apps/$app_name/pyproject.toml || test -f apps/$app_name/setup.py"; then
-
-            if ! compose_exec_backend bash -lc \
-                "test -f apps/$app_name/$app_name/__init__.py || test -f apps/$app_name/__init__.py"; then
-                echo "❌ apps/$app_name Python package is missing in the container mount."
-                echo "   Restore the git clone on the host, then rerun setup.sh."
-                continue
-            fi
-
-            if compose_exec_backend bash -lc \
-                "./env/bin/pip install --quiet -e apps/$app_name"; then
-                echo "✅ pip install -e apps/$app_name"
-            else
-                echo "⚠️  pip install failed for $app_name. Continuing..."
-            fi
+            "cd \"$bench_root\" && ./env/bin/pip install --quiet -e \"apps/$app_name\""; then
+            echo "✅ pip install -e apps/$app_name"
         else
-            echo "⚠️  $app_name has no pyproject.toml/setup.py. Skipping pip install."
+            echo "⚠️  pip install failed for $app_name. Continuing..."
         fi
     done
 }
@@ -751,24 +763,24 @@ install_custom_apps_editable() {
 # for app-specific schema repair. Otherwise sync_for(app, force=True) is used.
 repair_custom_app_schema() {
     local app_name=$1
+    local repaired=0
 
-    bench_site execute "
-import importlib
+    # bench execute only accepts a dotted callable path (eval mode), not inline Python.
+    if bench_site execute "${app_name}.install.ensure_app_schema" 2>/dev/null; then
+        repaired=1
+    elif bench_site execute frappe.model.sync.sync_for \
+        --args "[\"${app_name}\"]" --kwargs '{"force": 1}' 2>/dev/null; then
+        repaired=1
+    fi
 
-app_name = '$app_name'
-try:
-    module = importlib.import_module(f'{app_name}.install')
-except ImportError:
-    module = None
+    if [ "$repaired" -eq 1 ]; then
+        bench_site execute frappe.db.commit 2>/dev/null || true
+        echo "✅ Schema repair completed for $app_name"
+        return 0
+    fi
 
-if module and hasattr(module, 'ensure_app_schema'):
-    module.ensure_app_schema()
-else:
-    from frappe.model.sync import sync_for
-    sync_for(app_name, force=True)
-
-frappe.db.commit()
-" || echo "⚠️  Schema repair failed for $app_name."
+    echo "⚠️  Schema repair failed for $app_name."
+    return 1
 }
 
 repair_custom_apps_if_needed() {
