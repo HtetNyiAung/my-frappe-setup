@@ -154,7 +154,7 @@ services:
     volumes:
       - db-data:/var/lib/mysql
     ports:
-      - "127.0.0.1:3307:3306"
+      - "3307:3306"
 
   frontend:
     image: ${CUSTOM_IMAGE}
