@@ -123,8 +123,23 @@ FRAPPE_PORT=8787
 FRAPPE_INTERNAL_PORT=8080
 MYSQL_ROOT_PASSWORD=admin
 MARIADB_ROOT_PASSWORD=admin
+DB_ROOT_USERNAME=root
+DB_NAME=
+DB_PASSWORD=admin
 ADMIN_PASSWORD=admin
 ```
+
+Optional database settings for **new site creation only** (ignored when `SITE_DOMAIN` already exists):
+
+```env
+DB_ROOT_USERNAME=root
+DB_NAME=hluttaw_lms
+DB_PASSWORD=secure_site_db_password
+```
+
+- `DB_ROOT_USERNAME` — MariaDB admin user passed to `bench new-site` (default: `root`)
+- `DB_NAME` — custom database name; leave empty to let Frappe derive it from `SITE_DOMAIN`
+- `DB_PASSWORD` — site database user password stored in `site_config.json`
 
 ## Database Credential Repair
 

@@ -800,6 +800,34 @@ repair_custom_apps_if_needed() {
     done
 }
 
+create_new_site() {
+    local db_root_username="${DB_ROOT_USERNAME:-root}"
+    local -a new_site_args=(
+        bench new-site "$SITE_DOMAIN"
+        --admin-password "$ADMIN_PASSWORD"
+        --db-root-username "$db_root_username"
+        --db-root-password "$MYSQL_ROOT_PASSWORD"
+        --set-default
+    )
+
+    if [ -n "${DB_NAME:-}" ]; then
+        new_site_args+=(--db-name "$DB_NAME")
+    fi
+
+    if [ -n "${DB_PASSWORD:-}" ]; then
+        new_site_args+=(--db-password "$DB_PASSWORD")
+    fi
+
+    echo "Using db-root-username: $db_root_username"
+    if [ -n "${DB_NAME:-}" ]; then
+        echo "Using db-name: $DB_NAME"
+    else
+        echo "Using Frappe default db-name (derived from SITE_DOMAIN)"
+    fi
+
+    compose_exec_backend "${new_site_args[@]}"
+}
+
 provision_site() {
     INSTALL_OK=()
     INSTALL_FAIL=()
@@ -823,12 +851,7 @@ provision_site() {
 
     echo "Creating new site: $SITE_DOMAIN..."
 
-    if ! compose_exec_backend bench new-site "$SITE_DOMAIN" \
-        --admin-password "$ADMIN_PASSWORD" \
-        --db-root-username root \
-        --db-root-password "$MYSQL_ROOT_PASSWORD" \
-        --set-default; then
-
+    if ! create_new_site; then
         echo "❌ Failed to create site $SITE_DOMAIN. Aborting."
         exit 1
     fi
