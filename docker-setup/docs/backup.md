@@ -9,6 +9,7 @@ The `backup.sh` script is a crucial utility for production environments. It trig
     -   A compressed archive of public and private files.
 2.  **Host Extraction**: Automatically identifies the newly created backup files and uses `docker cp` to copy them from the container to a local directory on your server.
 3.  **Timestamping**: Organizes backups into directories named with the date and time (`YYYY-MM-DD_HH-MM-SS`) inside a `./backups/` folder.
+4.  **Retention**: After a successful backup, deletes any backup folders older than `BACKUP_RETENTION_DAYS` (default `7`) so the disk does not fill up over time. Set `BACKUP_RETENTION_DAYS` in `.env` to change the window.
 
 ## Usage
 

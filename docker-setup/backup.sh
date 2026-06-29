@@ -82,3 +82,18 @@ echo "Copying backup files to $BACKUP_PATH..."
 docker cp "$BACKEND_CONTAINER":/home/frappe/frappe-bench/sites/"$SITE_DOMAIN"/private/backups/ "$BACKUP_PATH/"
 
 echo "Backup Complete. Files saved in $BACKUP_PATH"
+
+# 3. Retention: remove backup folders older than BACKUP_RETENTION_DAYS (default 7)
+RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
+if ! [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]]; then
+    echo "Warning: BACKUP_RETENTION_DAYS ('$RETENTION_DAYS') is not a number; skipping cleanup."
+else
+    echo "Applying retention: deleting backups older than $RETENTION_DAYS day(s)..."
+    # -mtime +N matches items modified more than N*24h ago; each backup is its
+    # own timestamped folder under ./backups so deleting whole dirs is safe.
+    while IFS= read -r -d '' old_dir; do
+        echo "  removing $old_dir"
+        rm -rf "$old_dir"
+    done < <(find ./backups -mindepth 1 -maxdepth 1 -type d -mtime +"$RETENTION_DAYS" -print0)
+    echo "Retention cleanup complete."
+fi
