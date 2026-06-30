@@ -113,11 +113,16 @@ sudo certbot --nginx -d lms.example.com
 
 ## 8. Backup Checklist
 
+> Full setup: [Backup Automation Guide](backup-automation-guide.md) — cron, retention, Google Drive offsite.
+
 - [ ] Backup script runs successfully.
 - [ ] Database backup is created.
 - [ ] Public files backup is created.
 - [ ] Private files backup is created.
-- [ ] Backup folder is copied outside the server.
+- [ ] `BACKUP_RETENTION_DAYS` is set in `.env`.
+- [ ] Cron job is configured for nightly `backup.sh` (if using scheduled local backup).
+- [ ] Google Drive offsite backup is authorized in Frappe (if using cloud copy).
+- [ ] Backup folder is copied outside the server (or Google Drive upload verified).
 - [ ] Restore process is tested on a test server.
 
 Run:

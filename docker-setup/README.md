@@ -76,6 +76,7 @@ We have included robust shell scripts to manage the day-to-day operations of you
 
 - **`./logs.sh`** : Tails the logs for both the Frappe and Keycloak stacks simultaneously.
 - **`./backup.sh`** : Automatically triggers a Frappe site backup and pulls the dumped SQL/files directly to your host machine in a timestamped folder.
+- **Backup automation** : See **[Backup Automation Guide](docs/backup-automation-guide.md)** for cron scheduling, retention, and Google Drive offsite backups.
 - **`./cleanup.sh`** : Restarts containers and removes dangling or orphaned resources.
 - **`./restore.sh <path>`** : Restores a Frappe database dump directly into the running database container.
 

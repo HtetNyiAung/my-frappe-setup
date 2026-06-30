@@ -1,5 +1,7 @@
 # Backup Script (`backup.sh`)
 
+> **Full guide:** [Backup Automation Guide](backup-automation-guide.md) — local backup, cron schedule, retention, and Google Drive offsite setup.
+
 The `backup.sh` script is a crucial utility for production environments. It triggers an internal Frappe backup and copies the resulting files to the host machine for safe keeping.
 
 ## What it does
