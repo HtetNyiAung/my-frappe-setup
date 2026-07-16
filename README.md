@@ -84,7 +84,8 @@ Everything is automated via the `setup.sh` script.
 2. **Configure Environment**:
    ```bash
    cp .env.example .env
-   # Edit .env with your passwords and settings if needed
+   cp apps.json.example apps.json
+   # Edit .env and apps.json with your settings if needed
    ```
 
 3. **Run Initialization**:

@@ -23,12 +23,13 @@ All services communicate securely over internal Docker bridge networks, keeping 
 - At least 4GB of RAM (8GB highly recommended)
 
 ### 2. Configure Environment
-Before starting, copy the example environment file and define your setup:
+Before starting, copy the example environment file and apps configuration template:
 ```bash
 cd docker-setup
 cp .env.example .env
+cp apps.json.example apps.json
 ```
-> **Note:** For production, edit `.env` and change `KC_RUN_MODE=start`, use secure passwords, and set your real domains in `SITE_DOMAIN` and `KC_HOSTNAME`.
+> **Note:** For production, edit `.env` and change `KC_RUN_MODE=start`, use secure passwords, and set your real domains in `SITE_DOMAIN` and `KC_HOSTNAME`. Also edit `apps.json` to define which apps/branches you want to pull.
 
 ### 3. Start the Stack (Installation)
 Because we use a custom Docker image that bundles **ERPNext, HRMS, and Insights**, you must build the image and provision the Frappe site using the included setup script before turning on Keycloak.
