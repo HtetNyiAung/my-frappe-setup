@@ -95,3 +95,4 @@ apps/*/config/
 apps/*/secrets/
 
 docker-setup/frappe_docker/
+docker-setup/apps.json
