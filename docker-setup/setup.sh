@@ -283,6 +283,22 @@ def set_website_theme(theme_name, primary_color):
     print(f"Updated Website Theme: {doc.name}")
     return doc.name
 
+learning_icon = (
+    frappe.db.exists("Desktop Icon", "Frappe Learning")
+    or frappe.db.exists("Desktop Icon", {"app": "lms", "icon_type": "App"})
+)
+if learning_icon:
+    # Desktop Icon is a standard document, so a direct DB update avoids
+    # standard-document save validation while keeping setup idempotent.
+    frappe.db.set_value(
+        "Desktop Icon",
+        learning_icon,
+        "label",
+        "Digital Learning",
+        update_modified=False,
+    )
+    print(f"Updated Desktop Icon: {learning_icon} -> Digital Learning")
+
 if project_name:
     set_existing_fields("System Settings", {
         "app_name": project_name,
@@ -291,9 +307,6 @@ if project_name:
         "app_name": project_name,
         "brand_html": project_name,
         "title_prefix": project_name,
-    })
-    set_doc_fields("Desktop Icon", "Frappe Learning", {
-        "label": project_name,
     })
     set_doc_fields("LMS Course", "a-guide-to-frappe-learning", {
         "title": f"A guide to {project_name}",
