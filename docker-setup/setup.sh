@@ -8,6 +8,9 @@ set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+# shellcheck source=lib/logging.sh
+source "$SCRIPT_DIR/lib/logging.sh"
+init_script_logging "$SCRIPT_DIR" "setup"
 
 echo "$SCRIPT_DIR"
 
@@ -910,6 +913,7 @@ print_summary() {
 main() {
     check_requirements
     load_configuration
+    apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
     prepare_frappe_docker
     clone_custom_apps
     generate_compose_override

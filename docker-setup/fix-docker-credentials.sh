@@ -10,6 +10,12 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/logging.sh
+source "$SCRIPT_DIR/lib/logging.sh"
+init_script_logging "$SCRIPT_DIR" "fix-docker-credentials"
+apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
+
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG:-$HOME/.docker}"
 DOCKER_CONFIG_FILE="$DOCKER_CONFIG_DIR/config.json"
 

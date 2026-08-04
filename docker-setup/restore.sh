@@ -6,6 +6,9 @@ set -Eeuo pipefail
 CALL_DIR="$(pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+# shellcheck source=lib/logging.sh
+source "$SCRIPT_DIR/lib/logging.sh"
+init_script_logging "$SCRIPT_DIR" "restore"
 
 YES=0
 SKIP_PRE_BACKUP=0
@@ -99,6 +102,14 @@ cleanup() {
     fi
 }
 
+restore_on_exit() {
+    local exit_status="$?"
+
+    cleanup
+    script_logging_finish "$exit_status"
+    return "$exit_status"
+}
+
 find_first() {
     local folder="$1"
     shift
@@ -119,6 +130,7 @@ else
 fi
 
 require_env BACKEND_CONTAINER SITE_DOMAIN
+apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
 
 if [ -z "$BACKUP_SRC" ]; then
     echo "Error: Backup folder path is required."
@@ -179,7 +191,7 @@ else
     echo "Skipping pre-restore safety backup because --skip-pre-backup was provided."
 fi
 
-trap cleanup EXIT
+trap restore_on_exit EXIT
 
 echo "Uploading backup files to container temporary storage..."
 docker exec "$BACKEND_CONTAINER" rm -rf "$RESTORE_DIR"

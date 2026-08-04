@@ -33,15 +33,16 @@ For ~3000 registered users with ~300 peak concurrent users, a single server with
 ### What it does
 
 1. Runs `bench --site <site> backup --with-files` inside the backend container.
-2. Copies SQL + file archives to `./backups/YYYY-MM-DD_HH-MM-SS/` on the host.
-3. Deletes backup folders older than `BACKUP_RETENTION_DAYS` (default **7**).
+2. Verifies and copies the latest SQL, public files, private files, and site configuration backup to `./backups/YYYY-MM-DD_HH-MM-SS/backups/` on the host.
+3. Deletes host backup folders older than `BACKUP_RETENTION_DAYS` (default **14**) and keeps the latest `CONTAINER_BACKUP_KEEP_COUNT` complete sets in the container (default **3**).
 
 ### Configuration
 
 In `.env`:
 
 ```env
-BACKUP_RETENTION_DAYS=7
+BACKUP_RETENTION_DAYS=14
+CONTAINER_BACKUP_KEEP_COUNT=3
 ```
 
 ### Manual run
@@ -61,7 +62,10 @@ Output:
 ### Retention behaviour
 
 - Only runs **after** a successful backup.
-- Removes **entire timestamp folders** under `./backups/` older than the retention window.
+- Verifies the host copy before deleting any old backup.
+- Uses the `YYYY-MM-DD_HH-MM-SS` folder timestamp and removes **entire timestamp folders** under `./backups/` older than the retention window.
+- Skips folders whose names are not valid backup timestamps.
+- Groups the four files created by one Frappe backup timestamp as one container backup set.
 - Folders with spaces in the name are handled safely.
 - Set `BACKUP_RETENTION_DAYS=14` (or any positive integer) in `.env` to change the window without editing the script.
 

@@ -54,6 +54,12 @@ User Browser
 
 Do not expose `FRAPPE_INTERNAL_PORT=8080` directly to users.
 
+See also:
+
+```text
+docs/reverse-proxy-guide.md
+```
+
 ## 3. Docker Compose Review
 
 - [ ] `CUSTOM_IMAGE` is correct.

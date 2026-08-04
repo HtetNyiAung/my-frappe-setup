@@ -3,16 +3,24 @@
 # WARNING: All local data, database records, and custom configurations will be permanently removed.
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+# shellcheck source=lib/logging.sh
+source "$SCRIPT_DIR/lib/logging.sh"
+init_script_logging "$SCRIPT_DIR" "cleanup"
+
 # --- 1. Load Environment Variables ---
-if [ -f .env ]; then
+if [ -f "$SCRIPT_DIR/.env" ]; then
     set -a
     # shellcheck disable=SC1091
-    source .env
+    source "$SCRIPT_DIR/.env"
     set +a
 else 
     echo "❌ Error: .env file missing. Cleanup aborted."
     exit 1
 fi
+
+apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
 
 STACK_ID=${STACK_ID:-frappe_stack}
 echo "=========================================="

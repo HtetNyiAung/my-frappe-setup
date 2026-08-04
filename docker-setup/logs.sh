@@ -1,14 +1,24 @@
 #!/usr/bin/env bash
 # Purpose: Dynamic, real-time monitoring of all container logs in the stack (Frappe, Authentik, etc.)
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+# shellcheck source=lib/logging.sh
+source "$SCRIPT_DIR/lib/logging.sh"
+# Record lifecycle only; duplicating a continuous Docker log stream can fill disk.
+init_script_logging "$SCRIPT_DIR" "logs" "metadata"
+
 # --- 1. Load Environment Variables ---
-if [ -f .env ]; then 
+if [ -f "$SCRIPT_DIR/.env" ]; then
     set -a
-    source .env
+    # shellcheck disable=SC1091
+    source "$SCRIPT_DIR/.env"
     set +a
 else 
     echo "❌ Error: .env file missing."; exit 1
 fi
+
+apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
 
 STACK_ID=${STACK_ID:-frappe_stack}
 echo "=========================================="

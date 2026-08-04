@@ -2,16 +2,21 @@
 # Purpose: Update Frappe apps and framework versions safely
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+# shellcheck source=lib/logging.sh
+source "$SCRIPT_DIR/lib/logging.sh"
+init_script_logging "$SCRIPT_DIR" "update"
+
 # --- 1. Load Environment Variables ---
-if [ -f .env ]; then 
+if [ -f "$SCRIPT_DIR/.env" ]; then
     export $(grep -v '^#' .env | sed 's/\s*#.*$//' | xargs)
-    echo "Environment variables loaded from .env"
 else 
     echo "Error: .env file missing. Update aborted."; exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
+echo "Environment variables loaded from .env"
 
 echo "=========================================="
 echo "🚀 STARTING UPDATE PROCESS: $STACK_ID"
