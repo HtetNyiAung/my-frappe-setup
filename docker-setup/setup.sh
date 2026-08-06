@@ -291,16 +291,22 @@ learning_icon = (
     or frappe.db.exists("Desktop Icon", {"app": "lms", "icon_type": "App"})
 )
 if learning_icon:
-    # Desktop Icon is a standard document, so a direct DB update avoids
-    # standard-document save validation while keeping setup idempotent.
-    frappe.db.set_value(
-        "Desktop Icon",
-        learning_icon,
-        "label",
-        "Digital Learning",
-        update_modified=False,
-    )
-    print(f"Updated Desktop Icon: {learning_icon} -> Digital Learning")
+    current_label = frappe.db.get_value("Desktop Icon", learning_icon, "label")
+    if current_label != "Digital Learning":
+        existing_with_target_label = frappe.db.exists("Desktop Icon", {"label": "Digital Learning"})
+        if not existing_with_target_label:
+            frappe.db.set_value(
+                "Desktop Icon",
+                learning_icon,
+                "label",
+                "Digital Learning",
+                update_modified=False,
+            )
+            print(f"Updated Desktop Icon: {learning_icon} -> Digital Learning")
+        else:
+            print(f"Desktop Icon with label 'Digital Learning' already exists ({existing_with_target_label}). Skipping update.")
+    else:
+        print(f"Desktop Icon {learning_icon} is already named 'Digital Learning'.")
 
 if project_name:
     set_existing_fields("System Settings", {
