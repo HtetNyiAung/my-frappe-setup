@@ -282,3 +282,4 @@ docker compose exec backend bash
 - **[Update Guide](docker-setup/docs/update.md)**
 - **[Logs Guide](docker-setup/docs/logs.md)**
 - **[Cleanup Guide](docker-setup/docs/cleanup.md)**
+- **[MinIO S3 Storage Integration Guide](docker-setup/docs/minio-s3-integration-guide.md)**

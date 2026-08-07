@@ -353,6 +353,23 @@ apply_public_url() {
     echo "Public URL set to: $PUBLIC_URL"
 }
 
+apply_s3_storage_config() {
+    if [ -z "${S3_ENDPOINT_URL:-}" ]; then
+        return
+    fi
+
+    echo ""
+    echo "Applying MinIO S3 storage configuration to site config..."
+    bench_site set-config s3_endpoint_url "$S3_ENDPOINT_URL"
+    bench_site set-config s3_access_key "${S3_ACCESS_KEY:-admin}"
+    bench_site set-config s3_secret_key "${S3_SECRET_KEY:-ChangeThisStrongPassword123!}"
+    bench_site set-config s3_bucket "${S3_BUCKET_NAME:-app-public}"
+    if [ -n "${S3_PRIVATE_BUCKET_NAME:-}" ]; then
+        bench_site set-config s3_private_bucket "$S3_PRIVATE_BUCKET_NAME"
+    fi
+}
+
+
 # Repair a site database user when site_config.json and MariaDB passwords drift.
 repair_site_db_credentials() {
     if [ ! -f "$SCRIPT_DIR/repair_db_credentials.py" ]; then
@@ -930,6 +947,7 @@ main() {
     start_containers
     provision_site
     apply_public_url
+    apply_s3_storage_config
     apply_branding
     refresh_asset_cache
     print_summary
