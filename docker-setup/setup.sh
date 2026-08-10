@@ -24,6 +24,17 @@ echo "$SCRIPT_DIR"
 # Helpers
 # ---------------------------------------------------------------------------
 
+usage() {
+    cat <<'EOF'
+Usage: ./setup.sh [--rebuild] [--yes]
+
+Options:
+  --rebuild   Force a fresh custom image build.
+  --yes, -y   Run without interactive confirmation (for trusted scripts).
+  --help, -h  Show this help message.
+EOF
+}
+
 # Fail early when a required CLI tool is missing.
 require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -63,6 +74,34 @@ is_truthy() {
         1|true|TRUE|yes|YES|on|ON) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+confirm_setup() {
+    if [ "$YES" -eq 1 ]; then
+        return
+    fi
+
+    if [ ! -t 0 ]; then
+        echo "Error: Interactive confirmation is unavailable. Use --yes for trusted automation."
+        exit 1
+    fi
+
+    echo "=========================================="
+    echo "Setup Target Site: $SITE_DOMAIN"
+    echo "Custom Image:      $CUSTOM_IMAGE"
+    echo "Force Rebuild:     $FORCE_REBUILD"
+    echo "S3 Storage:        $S3_STORAGE_ENABLED"
+    echo "=========================================="
+
+    local confirmation
+    if ! read -r -p "Type SETUP to continue: " confirmation; then
+        echo "Setup cancelled."
+        exit 1
+    fi
+    if [ "$confirmation" != "SETUP" ]; then
+        echo "Setup cancelled."
+        exit 1
+    fi
 }
 
 normalize_s3_storage_enabled() {
@@ -655,7 +694,6 @@ load_configuration() {
         exit 1
     fi
 
-    ensure_docker_access
     check_production_readiness
     echo "Environment variables loaded from .env"
 }
@@ -783,10 +821,28 @@ update_submodules() {
 
 parse_args() {
     FORCE_REBUILD=false
+    YES=0
 
-    if [[ "${1:-}" == "--rebuild" ]]; then
-        FORCE_REBUILD=true
-    fi
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --rebuild)
+                FORCE_REBUILD=true
+                ;;
+            --yes|-y)
+                YES=1
+                ;;
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option: $1"
+                usage
+                exit 1
+                ;;
+        esac
+        shift
+    done
 }
 
 check_image_apps() {
@@ -835,7 +891,7 @@ build_custom_image() {
             if docker exec "$BACKEND_CONTAINER" bench list-sites 2>/dev/null | grep -Fxq "$SITE_DOMAIN"; then
                 echo "Rebuilding image... Taking a safety backup first..."
 
-                if ! "$SCRIPT_DIR/backup.sh"; then
+                if ! "$SCRIPT_DIR/backup.sh" --yes; then
                     if is_truthy "${REQUIRE_BACKUP_BEFORE_SETUP:-0}"; then
                         echo "Backup failed and REQUIRE_BACKUP_BEFORE_SETUP=1 is set. Aborting."
                         exit 1
@@ -1110,15 +1166,17 @@ print_summary() {
 }
 
 main() {
+    parse_args "$@"
     check_requirements
     load_configuration
     apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
+    confirm_setup
+    ensure_docker_access
     prepare_frappe_docker
     clone_custom_apps
     generate_compose_override
     validate_compose_config
     update_submodules
-    parse_args "$@"
     build_custom_image
     start_containers
     provision_site

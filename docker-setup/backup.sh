@@ -8,6 +8,38 @@ cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/lib/logging.sh"
 init_script_logging "$SCRIPT_DIR" "backup"
 
+YES=0
+
+usage() {
+    cat <<'EOF'
+Usage: ./backup.sh [--yes]
+
+Options:
+  --yes, -y  Run without interactive confirmation (for cron or trusted scripts).
+  --help, -h Show this help message.
+EOF
+}
+
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --yes|-y)
+                YES=1
+                ;;
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option: $1"
+                usage
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
+
 require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
         echo "Error: Required command '$1' is not installed or not in PATH."
@@ -35,6 +67,43 @@ require_env() {
 
     if [ ${#missing[@]} -gt 0 ]; then
         echo "Error: Missing required .env value(s): ${missing[*]}"
+        exit 1
+    fi
+}
+
+is_truthy() {
+    case "${1:-}" in
+        true|TRUE|True|1|yes|YES|Yes|on|ON|On)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+confirm_backup() {
+    if [ "$YES" -eq 1 ]; then
+        return
+    fi
+
+    if [ ! -t 0 ]; then
+        echo "Error: Interactive confirmation is unavailable. Use --yes for trusted automation."
+        exit 1
+    fi
+
+    echo "This will create a database and file backup for site '$SITE_DOMAIN'."
+    if is_truthy "${S3_STORAGE_ENABLED:-false}" && is_truthy "${S3_BACKUP_UPLOAD_ENABLED:-false}"; then
+        echo "The verified backup set will also be uploaded to S3 bucket '$S3_BACKUP_BUCKET_NAME'."
+    fi
+
+    local confirmation
+    if ! read -r -p "Type BACKUP to continue: " confirmation; then
+        echo "Backup cancelled."
+        exit 1
+    fi
+    if [ "$confirmation" != "BACKUP" ]; then
+        echo "Backup cancelled."
         exit 1
     fi
 }
@@ -99,6 +168,130 @@ verify_host_backup_set() {
     done
 }
 
+upload_backup_set_to_s3() {
+    local backup_prefix="$1"
+    local backup_timestamp="$2"
+
+    if ! is_truthy "${S3_STORAGE_ENABLED:-false}" || ! is_truthy "${S3_BACKUP_UPLOAD_ENABLED:-false}"; then
+        echo "S3 backup upload is disabled."
+        return 0
+    fi
+
+    require_env \
+        S3_ENDPOINT_URL \
+        S3_ACCESS_KEY \
+        S3_SECRET_KEY \
+        S3_REGION \
+        S3_BACKUP_BUCKET_NAME
+
+    echo "Uploading backup set to S3 bucket '$S3_BACKUP_BUCKET_NAME'..."
+    docker exec -i \
+        -e S3_ENDPOINT_URL="$S3_ENDPOINT_URL" \
+        -e S3_ACCESS_KEY="$S3_ACCESS_KEY" \
+        -e S3_SECRET_KEY="$S3_SECRET_KEY" \
+        -e S3_REGION="$S3_REGION" \
+        -e S3_BACKUP_BUCKET_NAME="$S3_BACKUP_BUCKET_NAME" \
+        -e S3_BACKUP_PREFIX="${S3_BACKUP_PREFIX:-frappe-backups}" \
+        -e S3_BACKUP_RETENTION_DAYS="${S3_BACKUP_RETENTION_DAYS:-}" \
+        "$BACKEND_CONTAINER" \
+        /home/frappe/frappe-bench/env/bin/python - \
+        "$CONTAINER_BACKUP_DIR" \
+        "$backup_prefix" \
+        "$SITE_DOMAIN" \
+        "$backup_timestamp" <<'PY'
+import os
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import boto3
+from botocore.exceptions import ClientError
+
+backup_dir = Path(sys.argv[1])
+backup_prefix = sys.argv[2]
+site_domain = sys.argv[3]
+backup_timestamp = sys.argv[4]
+
+bucket = os.environ["S3_BACKUP_BUCKET_NAME"]
+key_prefix = os.environ.get("S3_BACKUP_PREFIX", "frappe-backups").strip("/") or "frappe-backups"
+object_prefix = f"{key_prefix}/{site_domain}/{backup_timestamp}"
+suffixes = (
+    "database.sql.gz",
+    "files.tar",
+    "private-files.tar",
+    "site_config_backup.json",
+)
+
+client = boto3.client(
+    "s3",
+    endpoint_url=os.environ["S3_ENDPOINT_URL"],
+    aws_access_key_id=os.environ["S3_ACCESS_KEY"],
+    aws_secret_access_key=os.environ["S3_SECRET_KEY"],
+    region_name=os.environ["S3_REGION"],
+)
+
+try:
+    client.head_bucket(Bucket=bucket)
+except ClientError as exc:
+    raise SystemExit(f"S3 backup bucket is not reachable: {bucket}: {exc}") from exc
+
+for suffix in suffixes:
+    file_path = backup_dir / f"{backup_prefix}-{suffix}"
+    if not file_path.is_file() or file_path.stat().st_size <= 0:
+        raise SystemExit(f"Backup file is missing or empty: {file_path.name}")
+
+    key = f"{object_prefix}/{file_path.name}"
+    client.upload_file(str(file_path), bucket, key)
+
+    remote_size = client.head_object(Bucket=bucket, Key=key)["ContentLength"]
+    local_size = file_path.stat().st_size
+    if remote_size != local_size:
+        raise SystemExit(
+            f"S3 object size mismatch for {key}: local={local_size} remote={remote_size}"
+        )
+    print(f"  uploaded s3://{bucket}/{key}")
+
+retention_days = os.environ.get("S3_BACKUP_RETENTION_DAYS", "").strip()
+if retention_days:
+    if not retention_days.isdigit() or int(retention_days) <= 0:
+        raise SystemExit(
+            f"S3_BACKUP_RETENTION_DAYS must be a positive integer: {retention_days}"
+        )
+
+    cutoff = datetime.now() - timedelta(days=int(retention_days))
+    site_prefix = f"{key_prefix}/{site_domain}/"
+    paginator = client.get_paginator("list_objects_v2")
+
+    for page in paginator.paginate(Bucket=bucket, Prefix=site_prefix, Delimiter="/"):
+        for common_prefix in page.get("CommonPrefixes", []):
+            prefix = common_prefix.get("Prefix", "")
+            folder_name = prefix.rstrip("/").rsplit("/", 1)[-1]
+            try:
+                folder_time = datetime.strptime(folder_name, "%Y-%m-%d_%H-%M-%S")
+            except ValueError:
+                print(f"  skipping unsupported S3 backup prefix: {prefix}")
+                continue
+            if folder_time >= cutoff:
+                continue
+
+            delete_batch = []
+            for object_page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                delete_batch.extend(
+                    {"Key": item["Key"]} for item in object_page.get("Contents", [])
+                )
+                while len(delete_batch) >= 1000:
+                    client.delete_objects(
+                        Bucket=bucket,
+                        Delete={"Objects": delete_batch[:1000]},
+                    )
+                    delete_batch = delete_batch[1000:]
+            if delete_batch:
+                client.delete_objects(Bucket=bucket, Delete={"Objects": delete_batch})
+            print(f"  removed expired S3 backup prefix: {prefix}")
+PY
+    echo "S3 backup upload complete."
+}
+
 cleanup_container_backups() {
     local keep_count="$1"
 
@@ -125,6 +318,7 @@ find "$backup_dir" -maxdepth 1 -type f -name "*-database.sql.gz" \
 SH
 }
 
+parse_args "$@"
 require_command docker
 
 # --- 1. Load Environment Variables ---
@@ -140,6 +334,7 @@ fi
 
 require_env BACKEND_CONTAINER SITE_DOMAIN
 apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
+confirm_backup
 
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 CONTAINER_KEEP_COUNT="${CONTAINER_BACKUP_KEEP_COUNT:-3}"
@@ -168,6 +363,8 @@ copy_backup_set_to_host "$LATEST_BACKUP_PREFIX"
 verify_host_backup_set "$LATEST_BACKUP_PREFIX"
 
 echo "Backup Complete. Files saved in $BACKUP_PATH"
+
+upload_backup_set_to_s3 "$LATEST_BACKUP_PREFIX" "$TIMESTAMP"
 
 # 3. Host retention: remove timestamp folders older than the configured days
 if ! [[ "$RETENTION_DAYS" =~ ^[1-9][0-9]*$ ]]; then

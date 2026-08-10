@@ -125,7 +125,7 @@ crontab -e
 Add one line (adjust path and time as needed):
 
 ```cron
-30 19 * * * /home/hnna/my-frappe-setup/docker-setup/backup.sh >> /home/hnna/my-frappe-setup/docker-setup/backups/cron-backup.log 2>&1
+30 19 * * * /home/hnna/my-frappe-setup/docker-setup/backup.sh --yes >> /home/hnna/my-frappe-setup/docker-setup/backups/cron-backup.log 2>&1
 ```
 
 3. Verify:

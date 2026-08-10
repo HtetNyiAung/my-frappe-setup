@@ -12,6 +12,7 @@ The `backup.sh` script is a crucial utility for production environments. It trig
 2.  **Verification and Host Extraction**: Identifies the latest complete backup set, verifies its database, public files, private files, and site configuration files, then copies only that set to the host.
 3.  **Timestamping**: Organizes backups into directories named with the date and time (`YYYY-MM-DD_HH-MM-SS`) inside a `./backups/` folder.
 4.  **Retention**: After the host copy is verified, uses each timestamp folder name (`YYYY-MM-DD_HH-MM-SS`) to delete host backups older than `BACKUP_RETENTION_DAYS` (default `14`) and keeps the latest `CONTAINER_BACKUP_KEEP_COUNT` complete sets (default `3`) inside the container.
+5.  **Optional S3 Upload**: If both `S3_STORAGE_ENABLED=true` and `S3_BACKUP_UPLOAD_ENABLED=true`, uploads the verified backup set to the private S3 backup bucket and verifies each uploaded object size.
 
 Configure retention in `.env`:
 
@@ -20,11 +21,31 @@ BACKUP_RETENTION_DAYS=14
 CONTAINER_BACKUP_KEEP_COUNT=3
 ```
 
+Configure S3 backup upload in `.env`:
+
+```env
+S3_STORAGE_ENABLED=true
+S3_BACKUP_UPLOAD_ENABLED=true
+S3_BACKUP_BUCKET_NAME=app-backups
+S3_BACKUP_PREFIX=frappe-backups
+S3_BACKUP_RETENTION_DAYS=30
+```
+
+Use a dedicated private bucket for backups. Do not store database backups in
+the public or attachment buckets.
+
 ## Usage
 
 ```bash
 chmod +x backup.sh
 ./backup.sh
+```
+
+Manual runs show the target site and require typing `BACKUP` before any backup
+starts. For trusted non-interactive automation such as cron, use:
+
+```bash
+./backup.sh --yes
 ```
 
 ## Output Location

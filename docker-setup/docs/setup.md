@@ -11,6 +11,10 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
+The script displays the target site, image, rebuild mode, and S3 mode, then
+requires typing `SETUP` before it changes the stack. Trusted automation can use
+`./setup.sh --yes` to skip the prompt.
+
 Open the site:
 
 ```text
@@ -32,6 +36,8 @@ Use forced rebuild only when you want a fresh image:
 ```bash
 ./setup.sh --rebuild
 ```
+
+For a trusted non-interactive rebuild, run `./setup.sh --rebuild --yes`.
 
 Use `--rebuild` when:
 
