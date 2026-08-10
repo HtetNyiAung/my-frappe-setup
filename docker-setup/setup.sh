@@ -65,6 +65,23 @@ is_truthy() {
     esac
 }
 
+normalize_s3_storage_enabled() {
+    case "${S3_STORAGE_ENABLED:-false}" in
+        1|true|TRUE|yes|YES|on|ON)
+            S3_STORAGE_ENABLED=true
+            ;;
+        0|false|FALSE|no|NO|off|OFF|"")
+            S3_STORAGE_ENABLED=false
+            ;;
+        *)
+            echo "Error: S3_STORAGE_ENABLED must be true or false."
+            exit 1
+            ;;
+    esac
+
+    export S3_STORAGE_ENABLED
+}
+
 production_warning() {
     PRODUCTION_WARNING_COUNT=$((PRODUCTION_WARNING_COUNT + 1))
     echo "⚠️  Production warning: $1"
@@ -112,7 +129,12 @@ get_app_list() {
           else
             (.url | split("/") | last | split(".") | first)
           end
-    ' "$SCRIPT_DIR/apps.json" | xargs
+    ' "$SCRIPT_DIR/apps.json" |
+        if is_truthy "$S3_STORAGE_ENABLED"; then
+            xargs
+        else
+            awk '$0 != "frappe_s3_attachment"' | xargs
+        fi
 }
 
 # Confirm Docker is reachable before any build/start command runs.
@@ -354,19 +376,149 @@ apply_public_url() {
 }
 
 apply_s3_storage_config() {
-    if [ -z "${S3_ENDPOINT_URL:-}" ]; then
+    if ! is_truthy "$S3_STORAGE_ENABLED"; then
         return
     fi
 
     echo ""
-    echo "Applying MinIO S3 storage configuration to site config..."
+    echo "Applying MinIO S3 storage configuration..."
+
+    # Keep endpoint in site_config for future reference / custom code.
     bench_site set-config s3_endpoint_url "$S3_ENDPOINT_URL"
-    bench_site set-config s3_access_key "${S3_ACCESS_KEY:-admin}"
-    bench_site set-config s3_secret_key "${S3_SECRET_KEY:-ChangeThisStrongPassword123!}"
-    bench_site set-config s3_bucket "${S3_BUCKET_NAME:-app-public}"
-    if [ -n "${S3_PRIVATE_BUCKET_NAME:-}" ]; then
-        bench_site set-config s3_private_bucket "$S3_PRIVATE_BUCKET_NAME"
+
+    # Write credentials directly to the S3 File Attachment DocType.
+    # The frappe_s3_attachment app reads from this DocType, not site_config.
+    {
+        compose_exec_backend env \
+            S3_ACCESS_KEY="${S3_ACCESS_KEY:-admin}" \
+            S3_SECRET_KEY="${S3_SECRET_KEY:-ChangeThisStrongPassword123!}" \
+            S3_BUCKET_NAME="${S3_BUCKET_NAME:-app-public}" \
+            S3_REGION="${S3_REGION:-us-east-1}" \
+            bench --site "$SITE_DOMAIN" console --autoreload <<-'PY'
+namespace = {}
+exec("""
+import os
+import frappe
+
+if not frappe.db.exists("DocType", "S3 File Attachment"):
+    print("S3 File Attachment DocType not found. Skipping S3 config.")
+else:
+    doc = frappe.get_single("S3 File Attachment")
+    doc.aws_key = os.environ.get("S3_ACCESS_KEY", "")
+    doc.aws_secret = os.environ.get("S3_SECRET_KEY", "")
+    doc.bucket_name = os.environ.get("S3_BUCKET_NAME", "")
+    doc.region_name = os.environ.get("S3_REGION", "us-east-1")
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+    print("S3 File Attachment settings applied")
+""", namespace, namespace)
+PY
+    } || echo "⚠️  Failed to apply S3 File Attachment settings. Configure manually in Desk UI."
+}
+
+preflight_s3_storage() {
+    if ! is_truthy "$S3_STORAGE_ENABLED"; then
+        return
     fi
+
+    echo ""
+    echo "Checking MinIO S3 endpoint and bucket..."
+
+    if ! compose_exec_backend env \
+        S3_ENDPOINT_URL="$S3_ENDPOINT_URL" \
+        S3_ACCESS_KEY="$S3_ACCESS_KEY" \
+        S3_SECRET_KEY="$S3_SECRET_KEY" \
+        S3_BUCKET_NAME="$S3_BUCKET_NAME" \
+        S3_REGION="${S3_REGION:-us-east-1}" \
+        /home/frappe/frappe-bench/env/bin/python -c '
+import os
+import boto3
+
+client = boto3.client(
+    "s3",
+    endpoint_url=os.environ["S3_ENDPOINT_URL"],
+    aws_access_key_id=os.environ["S3_ACCESS_KEY"],
+    aws_secret_access_key=os.environ["S3_SECRET_KEY"],
+    region_name=os.environ["S3_REGION"],
+)
+client.head_bucket(Bucket=os.environ["S3_BUCKET_NAME"])
+print("S3 endpoint and bucket are ready")
+'; then
+        echo "Error: S3 storage preflight failed."
+        echo "Verify MinIO is reachable and bucket '$S3_BUCKET_NAME' exists, then rerun setup.sh."
+        exit 1
+    fi
+}
+
+count_s3_backed_files() {
+    local output
+
+    output="$({
+        compose_exec_backend env \
+            S3_BUCKET_NAME="${S3_BUCKET_NAME:-}" \
+            bench --site "$SITE_DOMAIN" console --autoreload <<-'PY'
+namespace = {}
+exec("""
+import os
+import frappe
+
+bucket = os.environ.get("S3_BUCKET_NAME", "").strip()
+private_pattern = "/api/method/frappe_s3_attachment.controller.generate_file%"
+public_pattern = f"%/{bucket}/%" if bucket else ""
+
+if public_pattern:
+    count = frappe.db.sql(
+        '''SELECT COUNT(*) FROM `tabFile`
+        WHERE file_url LIKE %s OR file_url LIKE %s''',
+        (private_pattern, public_pattern),
+    )[0][0]
+else:
+    count = frappe.db.count("File", {"file_url": ["like", private_pattern]})
+
+print(f"S3_BACKED_FILE_COUNT={count}")
+""", namespace, namespace)
+PY
+    } 2>&1)" || return 1
+
+    echo "$output" |
+        sed -n 's/.*S3_BACKED_FILE_COUNT=\([0-9][0-9]*\).*/\1/p' |
+        tail -n 1
+}
+
+reconcile_s3_storage_mode() {
+    local installed_apps
+    local s3_file_count
+
+    installed_apps="$(list_installed_apps || true)"
+
+    if is_truthy "$S3_STORAGE_ENABLED"; then
+        return
+    fi
+
+    if ! echo "$installed_apps" | awk '{print $1}' | grep -Fxq "frappe_s3_attachment"; then
+        echo "Local file storage enabled. S3 attachment hooks are not installed on this site."
+        return
+    fi
+
+    s3_file_count="$(count_s3_backed_files)" || {
+        echo "Error: Could not check for existing S3-backed File records."
+        echo "Refusing to disable frappe_s3_attachment without a successful safety check."
+        exit 1
+    }
+
+    if ! [[ "$s3_file_count" =~ ^[0-9]+$ ]]; then
+        echo "Error: Invalid S3-backed file count: '$s3_file_count'."
+        exit 1
+    fi
+
+    if [ "$s3_file_count" -gt 0 ]; then
+        echo "Error: Cannot switch to local storage while $s3_file_count S3-backed File record(s) remain."
+        echo "Migrate those objects and File URLs to local storage before setting S3_STORAGE_ENABLED=false."
+        exit 1
+    fi
+
+    echo "No S3-backed files found. Removing S3 attachment hooks from site $SITE_DOMAIN..."
+    bench_site uninstall-app --yes frappe_s3_attachment
 }
 
 
@@ -475,6 +627,8 @@ load_configuration() {
         exit 1
     fi
 
+    normalize_s3_storage_enabled
+
     require_env \
         CUSTOM_IMAGE \
         FRAPPE_BRANCH \
@@ -482,6 +636,14 @@ load_configuration() {
         SITE_DOMAIN \
         ADMIN_PASSWORD \
         MYSQL_ROOT_PASSWORD
+
+    if is_truthy "$S3_STORAGE_ENABLED"; then
+        require_env \
+            S3_ENDPOINT_URL \
+            S3_ACCESS_KEY \
+            S3_SECRET_KEY \
+            S3_BUCKET_NAME
+    fi
 
     if [ ! -f "$SCRIPT_DIR/$COMPOSE_FILE" ]; then
         echo "Error: COMPOSE_FILE '$COMPOSE_FILE' was not found in $SCRIPT_DIR."
@@ -576,9 +738,9 @@ generate_compose_override() {
     OVERRIDE_FILE="$SCRIPT_DIR/docker-compose.override.yml"
     SERVICES=("backend" "frontend" "configurator" "create-site" "queue-long" "queue-short" "scheduler" "websocket")
 
-    if [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ]; then
+    if [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ] && ! is_truthy "$S3_STORAGE_ENABLED"; then
         echo "services: {}" > "$OVERRIDE_FILE"
-        echo "No valid custom apps found. Generated empty override file."
+        echo "No custom app mounts or S3 environment settings are needed. Generated empty override file."
         return
     fi
 
@@ -586,13 +748,24 @@ generate_compose_override() {
 
     for svc in "${SERVICES[@]}"; do
         echo "  $svc:" >> "$OVERRIDE_FILE"
-        echo "    volumes:" >> "$OVERRIDE_FILE"
 
-        for app_name in "${VALID_CUSTOM_APPS[@]}"; do
-            echo "      - ./frappe_docker/apps/$app_name:/home/frappe/frappe-bench/apps/$app_name" >> "$OVERRIDE_FILE"
-        done
+        # Inject AWS_ENDPOINT_URL for MinIO S3 compatibility.
+        # boto3 SDK (v1.31.0+) reads this env var automatically,
+        # so frappe_s3_attachment connects to MinIO instead of AWS.
+        if is_truthy "$S3_STORAGE_ENABLED"; then
+            echo "    environment:" >> "$OVERRIDE_FILE"
+            echo "      AWS_ENDPOINT_URL: ${S3_ENDPOINT_URL}" >> "$OVERRIDE_FILE"
+        fi
 
-        echo "✅ Configured $svc with ${#VALID_CUSTOM_APPS[@]} custom apps"
+        if [ ${#VALID_CUSTOM_APPS[@]} -gt 0 ]; then
+            echo "    volumes:" >> "$OVERRIDE_FILE"
+
+            for app_name in "${VALID_CUSTOM_APPS[@]}"; do
+                echo "      - ./frappe_docker/apps/$app_name:/home/frappe/frappe-bench/apps/$app_name" >> "$OVERRIDE_FILE"
+            done
+        fi
+
+        echo "✅ Configured $svc with ${#VALID_CUSTOM_APPS[@]} custom apps (S3: $S3_STORAGE_ENABLED)"
     done
 }
 
@@ -877,7 +1050,10 @@ provision_site() {
     install_custom_apps_editable
     refresh_sites_apps_txt
 
+    preflight_s3_storage
+
     if compose_exec_backend bench list-sites | grep -q "$SITE_DOMAIN"; then
+        reconcile_s3_storage_mode
         echo "Site $SITE_DOMAIN exists. Installing/Updating apps one by one..."
         install_apps_one_by_one
 
