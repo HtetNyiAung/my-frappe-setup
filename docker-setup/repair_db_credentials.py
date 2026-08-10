@@ -35,17 +35,34 @@ def main() -> int:
         print(f"Error: Missing db_name/db_password in {config_path}", file=sys.stderr)
         return 1
 
+    root_username = os.environ.get("DB_ROOT_USERNAME", "root").strip() or "root"
     root_password = (
-        os.environ.get("MYSQL_ROOT_PASSWORD")
+        os.environ.get("DB_ROOT_PASSWORD")
+        or os.environ.get("MYSQL_ROOT_PASSWORD")
         or os.environ.get("MARIADB_ROOT_PASSWORD")
-        or os.environ.get("DB_ROOT_PASSWORD")
     )
     if not root_password:
-        print("Error: MYSQL_ROOT_PASSWORD or MARIADB_ROOT_PASSWORD is required.", file=sys.stderr)
+        print(
+            "Error: DB_ROOT_PASSWORD, MYSQL_ROOT_PASSWORD, or "
+            "MARIADB_ROOT_PASSWORD is required.",
+            file=sys.stderr,
+        )
         return 1
 
-    host = config.get("db_host") or "db"
-    connection = MySQLdb.connect(host=host, user="root", passwd=root_password)
+    host = os.environ.get("DB_HOST") or config.get("db_host") or "db"
+    port_text = str(os.environ.get("DB_PORT") or config.get("db_port") or "3306")
+    try:
+        port = int(port_text)
+    except ValueError:
+        print(f"Error: Invalid DB_PORT: {port_text}", file=sys.stderr)
+        return 1
+
+    connection = MySQLdb.connect(
+        host=host,
+        port=port,
+        user=root_username,
+        passwd=root_password,
+    )
     cursor = connection.cursor()
 
     user = quote_string(db_name)

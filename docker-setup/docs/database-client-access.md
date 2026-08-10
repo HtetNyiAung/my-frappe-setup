@@ -2,6 +2,9 @@
 
 This guide explains how to connect a database client such as MySQL Workbench to the MariaDB service used by this Frappe Docker setup.
 
+This page describes the bundled local MariaDB container. For a separate
+database server, see [External MariaDB](external-database.md).
+
 ## Recommended Production Pattern
 
 For production, avoid exposing the database port to the public network.

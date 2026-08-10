@@ -135,17 +135,27 @@ DB_PASSWORD=admin
 ADMIN_PASSWORD=admin
 ```
 
-Optional database settings for **new site creation only** (ignored when `SITE_DOMAIN` already exists):
+Database connection and site-creation settings:
 
 ```env
+DATABASE_MODE=local
+DB_HOST=db
+DB_PORT=3306
 DB_ROOT_USERNAME=root
+DB_ROOT_PASSWORD=
 DB_NAME=hluttaw_lms
 DB_PASSWORD=secure_site_db_password
 ```
 
+- `DATABASE_MODE` — `local` for Compose MariaDB or `external` for a separate server
+- `DB_HOST` / `DB_PORT` — database address reachable from the Frappe containers
 - `DB_ROOT_USERNAME` — MariaDB admin user passed to `bench new-site` (default: `root`)
-- `DB_NAME` — custom database name; leave empty to let Frappe derive it from `SITE_DOMAIN`
-- `DB_PASSWORD` — site database user password stored in `site_config.json`
+- `DB_ROOT_PASSWORD` — external provisioning password; local mode falls back to `MYSQL_ROOT_PASSWORD`
+- `DB_NAME` — new sites only; leave empty to let Frappe derive it from `SITE_DOMAIN`
+- `DB_PASSWORD` — new sites only; site database user password stored in `site_config.json`
+
+See [External MariaDB](external-database.md) before moving an existing site.
+Changing `DB_HOST` does not migrate any database records.
 
 ## Database Credential Repair
 
@@ -163,7 +173,10 @@ sites/<site>/site_config.json
 
 does not match the MariaDB user password.
 
-The setup script now detects this during `list-apps`, copies `repair_db_credentials.py` into the backend container, repairs the MariaDB user password/grants, and retries.
+The setup script detects this during `list-apps`, copies
+`repair_db_credentials.py` into the backend container, repairs the MariaDB user
+password/grants, and retries. For an external database, repair is blocked unless
+`ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=true` is explicitly configured.
 
 Manual repair command:
 

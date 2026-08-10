@@ -93,6 +93,7 @@ confirm_backup() {
     fi
 
     echo "This will create a database and file backup for site '$SITE_DOMAIN'."
+    echo "Database mode: ${DATABASE_MODE:-local} (${DB_HOST:-db}:${DB_PORT:-3306})"
     if is_truthy "${S3_STORAGE_ENABLED:-false}" && is_truthy "${S3_BACKUP_UPLOAD_ENABLED:-false}"; then
         echo "The verified backup set will also be uploaded to S3 bucket '$S3_BACKUP_BUCKET_NAME'."
     fi
@@ -115,9 +116,28 @@ repair_db_credentials() {
         return 0
     fi
 
+    if [ "${DATABASE_MODE:-local}" = "external" ] && ! is_truthy "${ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR:-false}"; then
+        echo "Error: Site database login failed and external credential repair is disabled."
+        echo "Set ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=true only for a controlled repair."
+        return 1
+    fi
+    if [ "${DATABASE_MODE:-local}" = "external" ] &&
+        { [ -z "${DB_ROOT_USERNAME:-}" ] || [ -z "${DB_ROOT_PASSWORD:-}" ]; }; then
+        echo "Error: External database repair requires DB_ROOT_USERNAME and DB_ROOT_PASSWORD."
+        return 1
+    fi
+
     echo "Site database login failed. Repairing MariaDB user from site_config.json..."
     docker cp "$SCRIPT_DIR/repair_db_credentials.py" "$BACKEND_CONTAINER":/tmp/repair_db_credentials.py
-    docker exec "$BACKEND_CONTAINER" /home/frappe/frappe-bench/env/bin/python /tmp/repair_db_credentials.py "$SITE_DOMAIN"
+    docker exec \
+        -e DATABASE_MODE="${DATABASE_MODE:-local}" \
+        -e DB_HOST="${DB_HOST:-db}" \
+        -e DB_PORT="${DB_PORT:-3306}" \
+        -e DB_ROOT_USERNAME="${DB_ROOT_USERNAME:-root}" \
+        -e DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}" \
+        "$BACKEND_CONTAINER" \
+        /home/frappe/frappe-bench/env/bin/python \
+        /tmp/repair_db_credentials.py "$SITE_DOMAIN"
     docker exec "$BACKEND_CONTAINER" bench --site "$SITE_DOMAIN" list-apps >/dev/null
 }
 

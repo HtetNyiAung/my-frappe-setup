@@ -90,6 +90,7 @@ confirm_setup() {
     echo "Setup Target Site: $SITE_DOMAIN"
     echo "Custom Image:      $CUSTOM_IMAGE"
     echo "Force Rebuild:     $FORCE_REBUILD"
+    echo "Database:          $DATABASE_MODE ($DB_HOST:$DB_PORT)"
     echo "S3 Storage:        $S3_STORAGE_ENABLED"
     echo "=========================================="
 
@@ -121,6 +122,65 @@ normalize_s3_storage_enabled() {
     export S3_STORAGE_ENABLED
 }
 
+normalize_database_configuration() {
+    DATABASE_MODE="${DATABASE_MODE:-local}"
+    DB_PORT="${DB_PORT:-3306}"
+
+    case "$DATABASE_MODE" in
+        local)
+            DB_HOST="${DB_HOST:-db}"
+            DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"
+            ;;
+        external)
+            require_env DB_HOST
+            if [ "$DB_HOST" = "db" ] || [ "$DB_HOST" = "localhost" ] || [ "$DB_HOST" = "127.0.0.1" ]; then
+                echo "Error: External DB_HOST must be reachable from Docker containers, not '$DB_HOST'."
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: DATABASE_MODE must be local or external."
+            exit 1
+            ;;
+    esac
+
+    if ! [[ "$DB_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || [ "$DB_PORT" -gt 65535 ]; then
+        echo "Error: DB_PORT must be an integer between 1 and 65535."
+        exit 1
+    fi
+
+    export DATABASE_MODE DB_HOST DB_PORT DB_ROOT_PASSWORD
+}
+
+preflight_external_database() {
+    if [ "$DATABASE_MODE" != "external" ]; then
+        return
+    fi
+
+    require_command python3
+    echo "Checking external MariaDB network access at $DB_HOST:$DB_PORT..."
+    if ! python3 - "$DB_HOST" "$DB_PORT" <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+
+try:
+    with socket.create_connection((host, port), timeout=5):
+        pass
+except OSError as exc:
+    raise SystemExit(f"External database is not reachable at {host}:{port}: {exc}") from exc
+
+print(f"External database TCP connection is ready: {host}:{port}")
+PY
+    then
+        echo "Error: External database preflight failed."
+        echo "Check its private DNS/IP, firewall allowlist, MariaDB bind address, and port."
+        exit 1
+    fi
+}
+
 production_warning() {
     PRODUCTION_WARNING_COUNT=$((PRODUCTION_WARNING_COUNT + 1))
     echo "⚠️  Production warning: $1"
@@ -139,13 +199,31 @@ check_production_readiness() {
         production_warning "BIND_ADDRESS is 0.0.0.0. For reverse-proxy production, prefer 127.0.0.1."
     fi
 
-    for var_name in MYSQL_ROOT_PASSWORD MARIADB_ROOT_PASSWORD DB_PASSWORD ADMIN_PASSWORD KC_ADMIN_PASSWORD AUTHENTIK_BOOTSTRAP_PASSWORD; do
+    for var_name in DB_PASSWORD ADMIN_PASSWORD KC_ADMIN_PASSWORD AUTHENTIK_BOOTSTRAP_PASSWORD; do
         case "${!var_name:-}" in
             ""|admin|password|changeme|keycloak_db_password|yoursecretkey_replacethis)
                 production_warning "$var_name uses an empty/default value."
                 ;;
         esac
     done
+
+    if [ "$DATABASE_MODE" = "external" ] && [ -n "${DB_ROOT_PASSWORD:-}" ]; then
+        case "$DB_ROOT_PASSWORD" in
+            admin|password|changeme)
+                production_warning "DB_ROOT_PASSWORD uses a default value."
+                ;;
+        esac
+    fi
+
+    if [ "$DATABASE_MODE" = "local" ]; then
+        for var_name in MYSQL_ROOT_PASSWORD MARIADB_ROOT_PASSWORD; do
+            case "${!var_name:-}" in
+                ""|admin|password|changeme)
+                    production_warning "$var_name uses an empty/default value."
+                    ;;
+            esac
+        done
+    fi
 
     if jq -e '.[] | select((.url | test("frappe/lms(.git)?$")) and (.branch == "develop"))' "$SCRIPT_DIR/apps.json" >/dev/null; then
         production_warning "LMS is pinned to the moving 'develop' branch. For production, prefer a release tag or commit SHA."
@@ -568,7 +646,18 @@ repair_site_db_credentials() {
         return 1
     fi
 
-    echo "Repairing MariaDB credentials for site $SITE_DOMAIN..."
+    if [ "$DATABASE_MODE" = "external" ] && ! is_truthy "${ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR:-false}"; then
+        echo "External database credential repair is disabled."
+        echo "Set ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=true only for a controlled repair."
+        return 1
+    fi
+    if [ "$DATABASE_MODE" = "external" ] &&
+        { [ -z "${DB_ROOT_USERNAME:-}" ] || [ -z "${DB_ROOT_PASSWORD:-}" ]; }; then
+        echo "External database repair requires DB_ROOT_USERNAME and DB_ROOT_PASSWORD."
+        return 1
+    fi
+
+    echo "Repairing MariaDB credentials for site $SITE_DOMAIN on $DB_HOST:$DB_PORT..."
 
     # Keep the repair script on the host and copy it into the container only when needed.
     if ! "${COMPOSE_CMD[@]}" cp "$SCRIPT_DIR/repair_db_credentials.py" backend:/tmp/repair_db_credentials.py; then
@@ -576,7 +665,13 @@ repair_site_db_credentials() {
         return 1
     fi
 
-    compose_exec_backend /home/frappe/frappe-bench/env/bin/python \
+    compose_exec_backend env \
+        DATABASE_MODE="$DATABASE_MODE" \
+        DB_HOST="$DB_HOST" \
+        DB_PORT="$DB_PORT" \
+        DB_ROOT_USERNAME="${DB_ROOT_USERNAME:-root}" \
+        DB_ROOT_PASSWORD="$DB_ROOT_PASSWORD" \
+        /home/frappe/frappe-bench/env/bin/python \
         /tmp/repair_db_credentials.py "$SITE_DOMAIN"
 }
 
@@ -667,14 +762,18 @@ load_configuration() {
     fi
 
     normalize_s3_storage_enabled
+    normalize_database_configuration
 
     require_env \
         CUSTOM_IMAGE \
         FRAPPE_BRANCH \
         COMPOSE_FILE \
         SITE_DOMAIN \
-        ADMIN_PASSWORD \
-        MYSQL_ROOT_PASSWORD
+        ADMIN_PASSWORD
+
+    if [ "$DATABASE_MODE" = "local" ]; then
+        require_env MYSQL_ROOT_PASSWORD MARIADB_ROOT_PASSWORD
+    fi
 
     if is_truthy "$S3_STORAGE_ENABLED"; then
         require_env \
@@ -771,21 +870,43 @@ clone_custom_apps() {
 
 generate_compose_override() {
     local app_name
+    local db_dependent
     local svc
 
     OVERRIDE_FILE="$SCRIPT_DIR/docker-compose.override.yml"
     SERVICES=("backend" "frontend" "configurator" "create-site" "queue-long" "queue-short" "scheduler" "websocket")
+    DB_DEPENDENT_SERVICES=("backend" "create-site" "queue-long" "queue-short" "scheduler")
 
-    if [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ] && ! is_truthy "$S3_STORAGE_ENABLED"; then
+    if [ "$DATABASE_MODE" = "external" ] &&
+        [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ] &&
+        ! is_truthy "$S3_STORAGE_ENABLED"; then
         echo "services: {}" > "$OVERRIDE_FILE"
-        echo "No custom app mounts or S3 environment settings are needed. Generated empty override file."
+        echo "No custom app mounts, S3 settings, or local DB dependencies are needed. Generated empty override file."
         return
     fi
 
     echo "services:" > "$OVERRIDE_FILE"
 
     for svc in "${SERVICES[@]}"; do
+        db_dependent=false
+        if [ "$DATABASE_MODE" = "local" ] &&
+            [[ " ${DB_DEPENDENT_SERVICES[*]} " == *" $svc "* ]]; then
+            db_dependent=true
+        fi
+
+        if [ "$db_dependent" = false ] &&
+            [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ] &&
+            ! is_truthy "$S3_STORAGE_ENABLED"; then
+            continue
+        fi
+
         echo "  $svc:" >> "$OVERRIDE_FILE"
+
+        if [ "$db_dependent" = true ]; then
+            echo "    depends_on:" >> "$OVERRIDE_FILE"
+            echo "      db:" >> "$OVERRIDE_FILE"
+            echo "        condition: service_healthy" >> "$OVERRIDE_FILE"
+        fi
 
         # Inject AWS_ENDPOINT_URL for MinIO S3 compatibility.
         # boto3 SDK (v1.31.0+) reads this env var automatically,
@@ -803,12 +924,16 @@ generate_compose_override() {
             done
         fi
 
-        echo "✅ Configured $svc with ${#VALID_CUSTOM_APPS[@]} custom apps (S3: $S3_STORAGE_ENABLED)"
+        echo "✅ Configured $svc with ${#VALID_CUSTOM_APPS[@]} custom apps (DB: $DATABASE_MODE, S3: $S3_STORAGE_ENABLED)"
     done
 }
 
+configure_compose_command() {
+    COMPOSE_CMD=("docker" "compose" "-f" "$COMPOSE_FILE" "-f" "$OVERRIDE_FILE")
+}
+
 validate_compose_config() {
-    if ! docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" config >/dev/null; then
+    if ! "${COMPOSE_CMD[@]}" config >/dev/null; then
         echo "Error: Docker Compose configuration is invalid."
         exit 1
     fi
@@ -939,14 +1064,27 @@ start_containers() {
     local up_args
 
     cd "$SCRIPT_DIR" || exit 1
-    COMPOSE_CMD=("docker" "compose" "-f" "$COMPOSE_FILE" "-f" "$OVERRIDE_FILE")
-
-    echo "Starting containers..."
+    echo "Starting containers with $DATABASE_MODE database mode..."
 
     up_args=("up" "-d")
     # Recreate when the image changed or custom app volume mounts must be applied.
     if [ "$IMAGE_BUILT" = true ] || [ ${#VALID_CUSTOM_APPS[@]} -gt 0 ]; then
         up_args+=("--force-recreate")
+    fi
+
+    if [ "$DATABASE_MODE" = "external" ]; then
+        up_args+=(
+            backend
+            configurator
+            create-site
+            frontend
+            queue-long
+            queue-short
+            redis-cache
+            redis-queue
+            scheduler
+            websocket
+        )
     fi
 
     if ! "${COMPOSE_CMD[@]}" "${up_args[@]}"; then
@@ -1069,12 +1207,14 @@ repair_custom_apps_if_needed() {
 }
 
 create_new_site() {
+    require_env DB_ROOT_USERNAME DB_ROOT_PASSWORD
+
     local db_root_username="${DB_ROOT_USERNAME:-root}"
     local -a new_site_args=(
         bench new-site "$SITE_DOMAIN"
         --admin-password "$ADMIN_PASSWORD"
         --db-root-username "$db_root_username"
-        --db-root-password "$MYSQL_ROOT_PASSWORD"
+        --db-root-password "$DB_ROOT_PASSWORD"
         --set-default
     )
 
@@ -1086,6 +1226,7 @@ create_new_site() {
         new_site_args+=(--db-password "$DB_PASSWORD")
     fi
 
+    echo "Using database server: $DB_HOST:$DB_PORT ($DATABASE_MODE)"
     echo "Using db-root-username: $db_root_username"
     if [ -n "${DB_NAME:-}" ]; then
         echo "Using db-name: $DB_NAME"
@@ -1109,6 +1250,12 @@ provision_site() {
     preflight_s3_storage
 
     if compose_exec_backend bench list-sites | grep -q "$SITE_DOMAIN"; then
+        if ! list_installed_apps >/dev/null; then
+            echo "Error: Existing site '$SITE_DOMAIN' cannot connect to $DB_HOST:$DB_PORT."
+            echo "Verify that its database and site user were migrated before switching DATABASE_MODE."
+            exit 1
+        fi
+
         reconcile_s3_storage_mode
         echo "Site $SITE_DOMAIN exists. Installing/Updating apps one by one..."
         install_apps_one_by_one
@@ -1171,10 +1318,12 @@ main() {
     load_configuration
     apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
     confirm_setup
+    preflight_external_database
     ensure_docker_access
     prepare_frappe_docker
     clone_custom_apps
     generate_compose_override
+    configure_compose_command
     validate_compose_config
     update_submodules
     build_custom_image
