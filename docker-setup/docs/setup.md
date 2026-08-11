@@ -154,8 +154,9 @@ DB_PASSWORD=secure_site_db_password
 - `DB_NAME` — new sites only; leave empty to let Frappe derive it from `SITE_DOMAIN`
 - `DB_PASSWORD` — new sites only; site database user password stored in `site_config.json`
 
-See [External MariaDB](external-database.md) before moving an existing site.
-Changing `DB_HOST` does not migrate any database records.
+Use [External MariaDB on an Ubuntu VM](external-database-ubuntu.md) to provision
+a new database host. See [External MariaDB](external-database.md) before moving
+an existing site. Changing `DB_HOST` does not migrate any database records.
 
 ## Database Credential Repair
 

@@ -3,6 +3,12 @@
 This setup supports either the bundled MariaDB container or a separate MariaDB
 server. The default remains local so existing installations continue to work.
 
+For commands to install, secure, firewall, back up, and monitor MariaDB on a
+separate Ubuntu VM, follow
+[External MariaDB on an Ubuntu VM](external-database-ubuntu.md). This document
+remains the canonical guide for Frappe connection mode, existing-site migration,
+and rollback.
+
 ## Modes
 
 Use the bundled database:
@@ -49,7 +55,8 @@ fresh site has been created if no automated credential repair is required.
 
 ## Fresh Site
 
-1. Provision the external MariaDB server and private firewall rule.
+1. Provision the external MariaDB server and private firewall rule. For Ubuntu,
+   use [the Ubuntu VM guide](external-database-ubuntu.md).
 2. Set `DATABASE_MODE=external` and the external database variables in `.env`.
 3. Run `./setup.sh` and verify the displayed database target before typing
    `SETUP`.
