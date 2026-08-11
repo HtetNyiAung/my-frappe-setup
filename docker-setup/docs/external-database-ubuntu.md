@@ -28,6 +28,41 @@ Database VM:   10.10.0.20
 Use private IP addresses. Never expose database port `3306` to the public
 internet.
 
+### If You Have More Than One Frappe Server
+
+`<APP_PRIVATE_IP>` means the private IP of a Frappe server. If there is only
+one Frappe server, use its one private IP:
+
+```text
+Frappe server: 10.10.0.10
+Database VM:   10.10.0.20
+```
+
+If there are multiple Frappe servers, record every private IP:
+
+```text
+Frappe App 1: 10.10.0.11
+Frappe App 2: 10.10.0.12
+Frappe App 3: 10.10.0.13
+Database VM:  10.10.0.20
+```
+
+Add one database firewall rule for each Frappe server:
+
+```bash
+sudo ufw allow from 10.10.0.11 to any port 3306 proto tcp
+sudo ufw allow from 10.10.0.12 to any port 3306 proto tcp
+sudo ufw allow from 10.10.0.13 to any port 3306 proto tcp
+```
+
+Do not use `0.0.0.0/0` to make multiple-server setup easier. The load balancer
+does not connect to MariaDB; each Frappe server connects directly to MariaDB.
+
+The temporary `frappe_provisioner` account is needed only for the Frappe server
+that runs `setup.sh`. Other Frappe servers use the site's normal database
+username and password. All Frappe servers for the same site must use the same
+site database credentials.
+
 ## Step 1: Update Ubuntu
 
 Connect to the database VM:
