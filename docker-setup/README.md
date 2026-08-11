@@ -77,6 +77,7 @@ We have included robust shell scripts to manage the day-to-day operations of you
 
 - **`./logs.sh`** : Tails the logs for both the Frappe and Keycloak stacks simultaneously.
 - **`./backup.sh`** : Automatically triggers a Frappe site backup and pulls the dumped SQL/files directly to your host machine in a timestamped folder.
+- **`./production.sh check`** : Performs read-only production readiness checks. Use `./production.sh apply` during an approved launch window to back up, harden, migrate, and verify the site.
 - **Backup automation** : See **[Backup Automation Guide](docs/backup-automation-guide.md)** for cron scheduling, retention, and Google Drive offsite backups.
 - **Script logs** : Operational scripts write timestamped logs under `logs/scripts/<script>/`. Set `SCRIPT_LOG_RETENTION_DAYS` in `.env` to control retention (default `30`). `logs.sh` records lifecycle only to avoid duplicating an unbounded container log stream.
 - **`./cleanup.sh`** : Restarts containers and removes dangling or orphaned resources.
@@ -86,6 +87,8 @@ We have included robust shell scripts to manage the day-to-day operations of you
 
 ## 🏗️ Modifying for Production
 Deploying this stack to production is completely driven by your `.env` file. Do **not** manually edit the `docker-compose.keycloak.yml` or `pwd-with-apps.yml` files.
+
+Use the [Production Mode Guide](docs/production-mode.md) for the guarded check/apply/verify workflow. `DEPLOYMENT_MODE=production` is a safety flag for these deployment scripts; Frappe itself does not provide a Laravel-style environment switch.
 
 1. **Set `KC_RUN_MODE=start`**: Keycloak requires `start` to run via HTTPS and enforce security in a production environment.
 2. **Ports**: Update `KC_PORT` and `FRAPPE_PORT` to `443` or use a Reverse Proxy (like NGINX, Traefik).

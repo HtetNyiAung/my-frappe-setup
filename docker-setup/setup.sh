@@ -999,6 +999,38 @@ check_image_apps() {
     fi
 }
 
+ensure_s3_image_dependencies() {
+    if ! is_truthy "$S3_STORAGE_ENABLED" ||
+        docker run --rm --entrypoint /home/frappe/frappe-bench/env/bin/python \
+            "$CUSTOM_IMAGE" -c "import boto3" >/dev/null 2>&1; then
+        return
+    fi
+
+    echo "Image '$CUSTOM_IMAGE' is missing boto3. Adding the required S3 dependency layer..."
+
+    if ! docker build \
+        --build-arg BASE_IMAGE="$CUSTOM_IMAGE" \
+        --tag "$CUSTOM_IMAGE" \
+        --file - "$SCRIPT_DIR" <<'DOCKERFILE'
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER frappe
+RUN /home/frappe/frappe-bench/env/bin/pip install --no-cache-dir "boto3>=1.34.0"
+DOCKERFILE
+    then
+        echo "Error: Failed to add boto3 to image '$CUSTOM_IMAGE'."
+        exit 1
+    fi
+
+    if ! docker run --rm --entrypoint /home/frappe/frappe-bench/env/bin/python \
+        "$CUSTOM_IMAGE" -c "import boto3" >/dev/null 2>&1; then
+        echo "Error: Image '$CUSTOM_IMAGE' still cannot import boto3 after dependency installation."
+        exit 1
+    fi
+
+    IMAGE_BUILT=true
+}
+
 build_custom_image() {
     IMAGE_BUILT=false
     check_image_apps
@@ -1008,6 +1040,7 @@ build_custom_image() {
         [ "$IMAGE_HAS_APPS" = true ]; then
 
         echo "Image '$CUSTOM_IMAGE' already contains apps from apps.json. Skipping build. (Use --rebuild to force)"
+        ensure_s3_image_dependencies
         return
     fi
 
@@ -1058,6 +1091,7 @@ build_custom_image() {
 
     cd "$SCRIPT_DIR" || exit 1
     IMAGE_BUILT=true
+    ensure_s3_image_dependencies
 }
 
 start_containers() {

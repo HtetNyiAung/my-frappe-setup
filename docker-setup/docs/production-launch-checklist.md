@@ -6,6 +6,19 @@ Audience: system administrator, deployment engineer, application administrator
 
 Use this checklist before launching a Frappe site for real users. This guide is intentionally generic so it can be reused for different Frappe apps.
 
+The automated parts of this checklist are available through
+[`production.sh`](production-mode.md):
+
+```bash
+./production.sh check
+./production.sh apply
+./production.sh verify
+```
+
+The apply command creates a verified backup before changing Frappe settings.
+It does not replace the manual DNS, TLS, reverse-proxy, access-control, and
+restore-test checks in this document.
+
 ## 1. Launch Decision
 
 - [ ] Confirm this is the approved production server.
@@ -35,6 +48,8 @@ Avoid launching to all users before login, access control, backup, restore, and 
 Recommended `.env` values:
 
 ```env
+DEPLOYMENT_MODE=production
+REQUIRE_PRODUCTION_READY=1
 SITE_DOMAIN=frontend
 PUBLIC_URL=https://app.example.com
 FRAPPE_PORT=8787
