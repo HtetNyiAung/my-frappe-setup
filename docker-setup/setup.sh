@@ -76,6 +76,61 @@ is_truthy() {
     esac
 }
 
+apps_require_github_token() {
+    jq -e '.[] | select(.private == true)' "$SCRIPT_DIR/apps.json" >/dev/null
+}
+
+validate_app_repository_auth() {
+    if jq -e \
+        '.[] | select((.url // "") | test("^https://[^/]+@github\\.com/"))' \
+        "$SCRIPT_DIR/apps.json" >/dev/null; then
+        echo "Error: apps.json contains a GitHub credential in a repository URL."
+        echo "Use a clean https://github.com/OWNER/REPOSITORY.git URL and set private=true."
+        echo "Store the token only in the ignored .env file as GITHUB_TOKEN."
+        exit 1
+    fi
+
+    if jq -e \
+        '.[] | select(.private == true and ((.url // "") | startswith("https://github.com/") | not))' \
+        "$SCRIPT_DIR/apps.json" >/dev/null; then
+        echo "Error: Private repositories currently require a clean https://github.com/... URL."
+        exit 1
+    fi
+
+    if apps_require_github_token; then
+        require_env GITHUB_TOKEN
+        require_command base64
+    fi
+}
+
+# Authenticate host-side Git operations without putting the token in the URL,
+# process arguments, repository remote, or command output.
+git_with_github_auth() {
+    local authorization
+
+    if [ -z "${GITHUB_TOKEN:-}" ]; then
+        git "$@"
+        return
+    fi
+
+    authorization="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+    GIT_CONFIG_COUNT=1 \
+        GIT_CONFIG_KEY_0='http.https://github.com/.extraheader' \
+        GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $authorization" \
+        git "$@"
+}
+
+redact_github_token() {
+    python3 -c '
+import os
+import sys
+
+token = os.environ.get("GITHUB_TOKEN", "")
+for line in sys.stdin:
+    sys.stdout.write(line.replace(token, "<redacted>") if token else line)
+'
+}
+
 confirm_setup() {
     if [ "$YES" -eq 1 ]; then
         return
@@ -743,6 +798,7 @@ check_requirements() {
     require_command git
     require_command jq
     require_command docker
+    require_command python3
 }
 
 load_configuration() {
@@ -793,6 +849,8 @@ load_configuration() {
         exit 1
     fi
 
+    validate_app_repository_auth
+
     check_production_readiness
     echo "Environment variables loaded from .env"
 }
@@ -837,15 +895,18 @@ clone_custom_apps() {
 
         if [ ! -d "$target_dir" ]; then
             echo "Found new custom app: $name ($url). Cloning..."
-            if ! git clone --branch "$branch" "$url" "$target_dir"; then
+            if ! git_with_github_auth clone --branch "$branch" "$url" "$target_dir"; then
                 echo "⚠️  Warning: Failed to clone $name. Skipping volume mount."
                 continue
             fi
         else
             echo "Custom app $name exists on host."
             if [ -d "$target_dir/.git" ]; then
+                # Replace any legacy credential-bearing origin with the clean
+                # URL from apps.json before fetching.
+                git -C "$target_dir" remote set-url origin "$url"
                 echo "Syncing $name from origin/$branch..."
-                if ! git -C "$target_dir" fetch origin "$branch"; then
+                if ! git_with_github_auth -C "$target_dir" fetch origin "$branch"; then
                     echo "⚠️  Warning: Failed to fetch $name. Using existing files."
                 elif ! git -C "$target_dir" reset --hard "origin/$branch"; then
                     echo "⚠️  Warning: Failed to reset $name to origin/$branch."
@@ -1032,6 +1093,10 @@ DOCKERFILE
 }
 
 build_custom_image() {
+    local build_apps_json
+    local build_status
+    local private_apps_json
+
     IMAGE_BUILT=false
     check_image_apps
 
@@ -1065,17 +1130,53 @@ build_custom_image() {
         fi
     fi
 
-    cp "$SCRIPT_DIR/apps.json" "$FRAPPE_PATH/apps.json"
+    build_apps_json="$SCRIPT_DIR/apps.json"
+    private_apps_json=""
+
+    if apps_require_github_token; then
+        private_apps_json="$(mktemp)"
+        chmod 600 "$private_apps_json"
+        trap 'rm -f -- "$private_apps_json"; exit 130' INT TERM
+
+        if ! jq --arg token "$GITHUB_TOKEN" '
+            map(
+                if .private == true then
+                    .url = (.url | sub(
+                        "^https://github.com/";
+                        "https://x-access-token:\($token)@github.com/"
+                    ))
+                else
+                    .
+                end
+                | del(.private)
+            )
+        ' "$SCRIPT_DIR/apps.json" >"$private_apps_json"; then
+            rm -f -- "$private_apps_json"
+            echo "Error: Failed to prepare authenticated private repository configuration."
+            exit 1
+        fi
+
+        build_apps_json="$private_apps_json"
+    fi
+
     cd "$FRAPPE_PATH" || exit 1
 
     echo "Building Image: $CUSTOM_IMAGE"
 
-    if ! docker build \
+    docker build \
         --build-arg FRAPPE_BRANCH="$FRAPPE_BRANCH" \
         --build-arg CACHE_BUST="$(date +%s)" \
-        --secret id=apps_json,src=apps.json \
+        --secret id=apps_json,src="$build_apps_json" \
         --tag "$CUSTOM_IMAGE" \
-        --file images/custom/Containerfile .; then
+        --file images/custom/Containerfile . 2>&1 | redact_github_token
+    build_status=${PIPESTATUS[0]}
+
+    if [ -n "$private_apps_json" ]; then
+        rm -f -- "$private_apps_json"
+        trap - INT TERM
+    fi
+
+    if [ "$build_status" -ne 0 ]; then
 
         echo ""
         echo "❌ ============================================="
