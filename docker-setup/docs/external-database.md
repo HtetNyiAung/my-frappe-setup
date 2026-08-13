@@ -5,9 +5,10 @@ server. The default remains local so existing installations continue to work.
 
 For commands to install, secure, firewall, back up, and monitor MariaDB on a
 separate Ubuntu VM, follow
-[External MariaDB on an Ubuntu VM](external-database-ubuntu.md). This document
-remains the canonical guide for Frappe connection mode, existing-site migration,
-and rollback.
+[External MariaDB on an Ubuntu VM](external-database-ubuntu.md). That document
+is the canonical step-by-step procedure for fresh setup, existing-site
+migration, verification, and rollback. This document is a concise connection
+mode overview.
 
 ## Modes
 
@@ -38,8 +39,9 @@ those addresses refer to the container itself.
 
 ## Database Server Requirements
 
-- Use a MariaDB release compatible with the deployed Frappe version. This
-  project currently tests against MariaDB 10.6.
+- Use a MariaDB release compatible with the deployed Frappe version. The
+  current Frappe `version-16` requirement is MariaDB 11.8; recheck the official
+  Frappe installation requirements before provisioning or upgrading.
 - Configure `utf8mb4` and `utf8mb4_unicode_ci`.
 - Allow TCP connections only from the application server's private IP or
   private network.
