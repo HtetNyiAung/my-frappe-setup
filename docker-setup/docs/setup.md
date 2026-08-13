@@ -111,6 +111,10 @@ The token needs read-only `Contents` access to every repository marked
 temporary HTTP authorization header. During the Docker image build it creates
 a mode-`600` temporary `apps.json`, supplies that file as a BuildKit secret,
 redacts the token from build output, and deletes the temporary file afterward.
+Before cloning or building, setup verifies access to each configured private
+repository branch with terminal credential prompts disabled. An invalid,
+expired, unauthorized, or insufficiently scoped token therefore stops with a
+clear error instead of asking for a username or password.
 
 Do not use either of these credential-bearing URL forms:
 

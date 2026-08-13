@@ -114,10 +114,40 @@ git_with_github_auth() {
     fi
 
     authorization="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
-    GIT_CONFIG_COUNT=1 \
+    GIT_TERMINAL_PROMPT=0 \
+        GIT_CONFIG_COUNT=1 \
         GIT_CONFIG_KEY_0='http.https://github.com/.extraheader' \
         GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $authorization" \
         git "$@"
+}
+
+validate_private_repository_access() {
+    local branch
+    local name
+    local row
+    local url
+
+    if ! apps_require_github_token; then
+        return
+    fi
+
+    echo "Checking access to private GitHub repositories..."
+
+    while IFS= read -r row; do
+        name=$(echo "$row" | jq -r '.name // (.url | split("/") | last | split(".") | first)')
+        url=$(echo "$row" | jq -r '.url')
+        branch=$(echo "$row" | jq -r '.branch // "main"')
+
+        if ! git_with_github_auth ls-remote --exit-code \
+            "$url" "refs/heads/$branch" >/dev/null; then
+            echo "Error: Cannot read private GitHub repository '$name' branch '$branch'."
+            echo "Verify that GITHUB_TOKEN is valid, not expired, authorized for SSO if required,"
+            echo "and has read-only Contents access to the repository."
+            exit 1
+        fi
+
+        echo "Private repository access ready: $name ($branch)"
+    done < <(jq -c '.[] | select(.private == true)' "$SCRIPT_DIR/apps.json")
 }
 
 redact_github_token() {
@@ -1453,6 +1483,7 @@ main() {
     load_configuration
     apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
     confirm_setup
+    validate_private_repository_access
     preflight_external_database
     ensure_docker_access
     prepare_frappe_docker
