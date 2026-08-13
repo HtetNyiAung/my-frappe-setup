@@ -36,19 +36,24 @@ Because we use a custom Docker image that bundles **ERPNext, HRMS, and Insights*
 
 ```bash
 # 1. Make scripts executable
-chmod +x setup.sh logs.sh cleanup.sh backup.sh restore.sh
+chmod +x setup.sh deploy.sh ops.sh logs.sh cleanup.sh backup.sh restore.sh
 
 # 2. Build the Frappe Image, provision the site, and start the Frappe stack
 ./setup.sh
+```
 
 ### Understanding `setup.sh` Commands
 
-*   **`./setup.sh` (Normal Case):**
-    Use this for standard daily operations. It **skips** the time-consuming Docker build if the image already exists. This makes it very fast and resilient to network/VPN issues while starting your containers.
+*   **`./setup.sh` (First Setup):**
+    Build the image, start the infrastructure, create the site, and install apps.
 
-*   **`./setup.sh --rebuild` (Maintenance Case):**
-    Use this when you **need to update your apps** (like ERPNext, HRMS, or Insights) to their latest repository versions or when you have modified `apps.json`. It will force a complete fresh build of the Docker image.
+*   **`./setup.sh --reconfigure` (Infrastructure Change):**
+    Explicitly re-run setup-managed configuration for an existing site.
 
+*   **`./deploy.sh apply` (Routine Code Release):**
+    Build, back up, migrate, clear cache, restart, and verify safely.
+
+```bash
 # 3. Start the Keycloak SSO server (Option 1)
 docker compose -f docker-compose.keycloak.yml up -d
 
@@ -67,8 +72,8 @@ By default, the services will be available at:
 ## 🔐 SSO Integration Guides
 This stack natively supports authenticating Frappe users via either Keycloak or Authentik! Read the dedicated setup guide for your preferred provider:
 
-*   👉 **[Keycloak to Frappe Setup Guide](docs/keycloak-frappe-setup-guide.md)**
-*   👉 **[Authentik to Frappe Setup Guide](docs/authentik-frappe-setup-guide.md)**
+*   👉 **[Keycloak to Frappe Setup Guide](docs/integrations/keycloak-frappe-setup-guide.md)**
+*   👉 **[Authentik to Frappe Setup Guide](docs/integrations/authentik-frappe-setup-guide.md)**
 
 ---
 
@@ -77,18 +82,24 @@ We have included robust shell scripts to manage the day-to-day operations of you
 
 - **`./logs.sh`** : Tails the logs for both the Frappe and Keycloak stacks simultaneously.
 - **`./backup.sh`** : Automatically triggers a Frappe site backup and pulls the dumped SQL/files directly to your host machine in a timestamped folder.
+- **`./deploy.sh check|plan|apply|verify`** : Runs the guarded application release workflow.
+- **`./ops.sh status|restart|clear-cache|migrate|logs`** : Handles routine runtime operations without invoking setup.
 - **`./production.sh check`** : Performs read-only production readiness checks. Use `./production.sh apply` during an approved launch window to back up, harden, migrate, and verify the site.
-- **Backup automation** : See **[Backup Automation Guide](docs/backup-automation-guide.md)** for cron scheduling, retention, and Google Drive offsite backups.
+- **Backup automation** : See **[Backup Automation Guide](docs/operations/backup-automation-guide.md)** for cron scheduling, retention, and Google Drive offsite backups.
 - **Script logs** : Operational scripts write timestamped logs under `logs/scripts/<script>/`. Set `SCRIPT_LOG_RETENTION_DAYS` in `.env` to control retention (default `30`). `logs.sh` records lifecycle only to avoid duplicating an unbounded container log stream.
 - **`./cleanup.sh`** : Restarts containers and removes dangling or orphaned resources.
 - **`./restore.sh <path>`** : Restores a Frappe database dump directly into the running database container.
+
+Detailed instructions: [Deployment Guide](docs/deployment/deploy.md) and
+[Operations Guide](docs/operations/operations.md). For command selection in
+Myanmar, use the [Myanmar Script Usage Guide](docs/guide/script-usage-guide-my.md).
 
 ---
 
 ## 🏗️ Modifying for Production
 Deploying this stack to production is completely driven by your `.env` file. Do **not** manually edit the `docker-compose.keycloak.yml` or `pwd-with-apps.yml` files.
 
-Use the [Production Mode Guide](docs/production-mode.md) for the guarded check/apply/verify workflow. `DEPLOYMENT_MODE=production` is a safety flag for these deployment scripts; Frappe itself does not provide a Laravel-style environment switch.
+Use the [Production Mode Guide](docs/deployment/production-mode.md) for the guarded check/apply/verify workflow. `DEPLOYMENT_MODE=production` is a safety flag for these deployment scripts; Frappe itself does not provide a Laravel-style environment switch.
 
 1. **Set `KC_RUN_MODE=start`**: Keycloak requires `start` to run via HTTPS and enforce security in a production environment.
 2. **Ports**: Update `KC_PORT` and `FRAPPE_PORT` to `443` or use a Reverse Proxy (like NGINX, Traefik).
