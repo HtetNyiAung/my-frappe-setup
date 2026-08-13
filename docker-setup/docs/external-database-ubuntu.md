@@ -1,125 +1,90 @@
-# External MariaDB on Ubuntu for Frappe Docker
+# First Setup with External MariaDB on Ubuntu
 
-This guide installs MariaDB on a separate Ubuntu server and connects the
-Frappe Docker stack to it over a private network. It covers both:
+ဒီ guide က Frappe site ကို ပထမဆုံး setup လုပ်ချိန်ကတည်းက MariaDB ကို
+App Server ထဲမှာမထားဘဲ သီးခြား Database Server ပေါ်မှာထားသုံးမည့်နည်းကို
+တစ်ဆင့်ချင်းရှင်းပြထားပါတယ်။
 
-1. a **fresh site**, created directly on the external database; and
-2. an **existing site**, moved from the bundled MariaDB container to the
-   external database.
+ဒီ guide က **fresh first setup အတွက်သာ** ဖြစ်ပါတယ်။ `frontend` site ရှိပြီးသား၊
+local MariaDB ထဲမှာ data ရှိပြီးသား သို့မဟုတ် Database export/import လုပ်ပြီးသားဆိုရင်
+ဒီနည်းကို မသုံးပါနဲ့။ [Existing Site Migration](external-database.md#existing-site-migration)
+ကိုသုံးပါ။
 
-Read Step 0 before changing `.env`. The two paths use `DB_NAME` and
-`DB_PASSWORD` differently.
+## ရလာမည့် Architecture
 
-This repository targets Frappe Framework `version-16`. Its current documented
-database requirement is MariaDB `11.8`. Recheck the requirement for the exact
-Frappe branch before installing or upgrading MariaDB:
-[Frappe installation requirements](https://docs.frappe.io/framework/user/en/installation).
+```mermaid
+flowchart LR
+    User[Portal / Desk User]
 
-## Important Configuration Rule
+    subgraph APP[App Server]
+        Frappe[Frappe Docker Services]
+        Redis[Redis Cache and Queue]
+    end
 
-Frappe database configuration is split between two places:
+    subgraph DB[Database Server]
+        MariaDB[(MariaDB 11.8<br/>Port 3306)]
+    end
 
-| Configuration | File | Meaning |
-|---|---|---|
-| Database server address | `docker-setup/.env` | `DATABASE_MODE`, `DB_HOST`, and `DB_PORT` |
-| Existing site's database login | `sites/<SITE_DOMAIN>/site_config.json` | `db_name`, `db_user`, and `db_password` |
-| Fresh-site creation values | `docker-setup/.env` | `DB_NAME` and `DB_PASSWORD`, passed to `bench new-site` |
-
-`DB_NAME` and `DB_PASSWORD` in `.env` are used only when `setup.sh` creates a
-new site. They do not override an existing site's `site_config.json`.
-
-For example, if an existing site contains:
-
-```json
-{
-  "db_name": "_example_site_database",
-  "db_user": "_example_site_database",
-  "db_password": "<SITE_DATABASE_PASSWORD>"
-}
+    User -->|HTTPS| Frappe
+    Frappe --> Redis
+    Frappe -->|Private Network| MariaDB
 ```
 
-setting `DB_NAME=dpuat` in `.env` does not switch that existing site to
-`dpuat`. Use one of the existing-site migration options in Step 11.
+Setup မစခင် ကိုယ့် environment က values တွေကို အောက်ပါ placeholders နဲ့
+သတ်မှတ်ထားပါ:
 
-Never commit real IP addresses, passwords, encryption keys, or customer data
-to this repository. Replace every angle-bracket placeholder before running a
-command.
-
-## Step 0: Choose the Correct Path
-
-| Situation | Path |
+| Setting | Placeholder / value |
 |---|---|
-| No Frappe site exists yet | Complete Steps 1–10, then Steps 12–14 |
-| A site currently uses the bundled `db` container | Complete Steps 1–6 and 9, then Steps 11–14 |
-| The external server already contains an imported site database | Complete Steps 1–6 and 9, then Steps 11.4–14 |
+| App Server IP | `<APP_PRIVATE_IP>` |
+| Database Server IP | `<DB_PRIVATE_IP>` |
+| MariaDB Port | `3306` |
+| Frappe Site | `frontend` |
+| Site Database | `dpuat` |
 
-Do not run the fresh-site path against an imported production database.
-Changing `DB_HOST` changes the destination; it does not copy data.
+Command တွေထဲက `<...>` placeholder တွေကို ကိုယ့် server value နဲ့ အစားထိုးပါ။
+Password ကို Git, documentation, screenshot သို့မဟုတ် chat ထဲ မထည့်ပါနဲ့။
 
-## Step 1: Record the Network Values
+## Setup အလုပ်လုပ်ပုံ
 
-Use these placeholders throughout this guide:
-
-```text
-<APP_PRIVATE_IP>    Source IP used by the App Server to reach MariaDB
-<DB_PRIVATE_IP>     Private IP of the Database Server
-<ADMIN_PRIVATE_IP>  Source IP allowed to SSH to the Database Server
-<SITE_DOMAIN>       Frappe site directory name, for example frontend
-```
-
-### 1.1 Find the Database Server IP
-
-Run on the **Database Server**:
-
-```bash
-ip -br address
-```
-
-Record the private address on the active interface as `<DB_PRIVATE_IP>`.
-
-### 1.2 Find the App Server's routed source IP
-
-Run on the **App Server**:
-
-```bash
-ip route get <DB_PRIVATE_IP>
-hostname -I
-```
-
-Example:
+First setup မှာ `.env` က configuration အားလုံးကို စတင်ထိန်းချုပ်ပါတယ်:
 
 ```text
-192.168.89.250 via 192.168.99.1 dev ens18 src 192.168.99.122
+.env
+  -> setup.sh
+  -> bench new-site
+  -> External MariaDB မှာ dpuat database ဆောက်မယ်
+  -> dpuat runtime user ဆောက်မယ်
+  -> sites/frontend/site_config.json ကို အလိုအလျောက်ရေးမယ်
 ```
 
-The address after `src` is `<APP_PRIVATE_IP>`. Use that exact address in the
-UFW and MariaDB account rules. Do not guess it from a Docker bridge address.
+`site_config.json` ကို ကိုယ်တိုင်ပြင်စရာ မလိုပါ။ ဒါပေမယ့် ဒီ behavior က
+`frontend` site မရှိသေးတဲ့ first setup မှာပဲ မှန်ပါတယ်။
 
-### 1.3 Find the SSH administrator source IP
+## Step 1: Database Server ကိုပြင်ဆင်ပါ
 
-Run inside the current SSH session on the **Database Server**:
+Database Server ကို SSH ဝင်ပါ:
 
 ```bash
-printf '%s\n' "$SSH_CONNECTION"
+ssh <DB_SERVER_USER>@<DB_PRIVATE_IP>
 ```
 
-The first address is normally the administrator's source address. Confirm it
-before changing firewall rules and record it as `<ADMIN_PRIVATE_IP>`.
-
-## Step 2: Install MariaDB on the Database Server
-
-Connect to the Database Server and install prerequisites:
+Package list update လုပ်ပြီး လိုအပ်တဲ့ tools တွေ install လုပ်ပါ:
 
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y ca-certificates curl ufw netcat-openbsd tcpdump
+sudo apt install -y ca-certificates curl ufw netcat-openbsd
 ```
 
-If Ubuntu reports that a reboot is required, reboot and reconnect before
-continuing.
+Server ကို reboot လိုတယ်လို့ပြရင် reboot လုပ်ပြီးမှ နောက်တစ်ဆင့်ဆက်ပါ။
 
-Install the MariaDB `11.8` repository:
+## Step 2: MariaDB 11.8 Install လုပ်ပါ
+
+Frappe `version-16` အတွက် ဒီ project က MariaDB `11.8` ကိုသုံးပါတယ်။
+Deployment မလုပ်ခင် အသုံးပြုမယ့် Frappe branch ရဲ့
+[official requirements](https://docs.frappe.io/framework/user/en/installation)
+ကို ပြန်စစ်ပါ။
+
+MariaDB repository setup script ကိုယူပါ:
 
 ```bash
 curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup \
@@ -129,14 +94,13 @@ sudo bash /tmp/mariadb_repo_setup \
   --mariadb-server-version=mariadb-11.8
 ```
 
-Confirm the candidate version before installation:
+Install မလုပ်ခင် candidate version စစ်ပါ:
 
 ```bash
 apt-cache policy mariadb-server
 ```
 
-The candidate must be the intended MariaDB `11.8` release. Then install and
-start it:
+Candidate က `11.8` ဖြစ်မှ ဆက်လုပ်ပါ:
 
 ```bash
 sudo apt update
@@ -144,7 +108,7 @@ sudo apt install -y mariadb-server mariadb-client
 sudo systemctl enable --now mariadb
 ```
 
-Verify it:
+Service နဲ့ version စစ်ပါ:
 
 ```bash
 mariadb --version
@@ -152,24 +116,24 @@ sudo systemctl status mariadb --no-pager -l
 sudo mariadb-admin ping
 ```
 
-Required result:
+အောက်ပါ result ရရပါမယ်:
 
 ```text
 mysqld is alive
 ```
 
-Do not perform an unplanned in-place MariaDB major-version change on a server
-that already contains data. Back up and test the supported upgrade path first.
+MariaDB `11.8` install လုပ်ပြီး service running ဖြစ်ပြီးသားဆိုရင် ဒီ Step ကို
+ထပ်လုပ်စရာမလိုပါ။
 
-## Step 3: Configure MariaDB for Frappe
+## Step 3: MariaDB ကို Private IP မှာ Listen လုပ်ခိုင်းပါ
 
-Create a dedicated configuration file on the **Database Server**:
+Database Server မှာ config file အသစ်ဖွင့်ပါ:
 
 ```bash
 sudo nano /etc/mysql/mariadb.conf.d/60-frappe.cnf
 ```
 
-Add the following, replacing `<DB_PRIVATE_IP>`:
+အောက်ပါ configuration ထည့်ပါ:
 
 ```ini
 [mariadb]
@@ -184,7 +148,7 @@ innodb-file-per-table = 1
 max-allowed-packet = 256M
 ```
 
-Restart MariaDB and verify the listener:
+MariaDB restart လုပ်ပါ:
 
 ```bash
 sudo systemctl restart mariadb
@@ -192,24 +156,21 @@ sudo systemctl status mariadb --no-pager -l
 sudo ss -lntp | grep ':3306'
 ```
 
-Required listener:
+အောက်ပါပုံစံရရပါမယ်:
 
 ```text
 LISTEN ... <DB_PRIVATE_IP>:3306 ... mariadbd
 ```
 
-Do not expose MariaDB on a public interface. Binding to the private address and
-restricting the firewall are separate protections; both are required.
+`127.0.0.1:3306` ပဲပြနေရင် App Server က ချိတ်လို့မရသေးပါ။
 
-## Step 4: Secure the MariaDB Installation
-
-Run:
+## Step 4: MariaDB ကို Secure လုပ်ပါ
 
 ```bash
 sudo mariadb-secure-installation
 ```
 
-Recommended choices:
+Recommended answers:
 
 ```text
 Remove anonymous users: Y
@@ -218,46 +179,30 @@ Remove test database: Y
 Reload privilege tables: Y
 ```
 
-Confirm that local administrative access still works:
+Remote `root` login ဖွင့်စရာမလိုပါ။ နောက်အဆင့်မှာ App Server IP တစ်ခုတည်းက
+အသုံးပြုနိုင်မယ့် temporary provisioning user ဆောက်ပါမယ်။
+
+## Step 5: UFW Firewall ဖွင့်ပါ
+
+Database Server ရဲ့ current SSH connection ကို မပိတ်သေးဘဲ SSH rule မှန်တာ
+အရင်သေချာစစ်ပါ။
+
+App Server `<APP_PRIVATE_IP>` က Database Server `<DB_PRIVATE_IP>` port `3306`
+ကိုပဲ ဝင်ခွင့်ပေးပါ:
 
 ```bash
-sudo mariadb
+sudo ufw allow from <APP_PRIVATE_IP> \
+  to <DB_PRIVATE_IP> port 3306 proto tcp
 ```
 
-Then exit:
-
-```sql
-EXIT;
-```
-
-Frappe does not require remote MariaDB `root` login. A temporary, host-limited
-provisioning account is used for a fresh site.
-
-## Step 5: Configure Firewalls
-
-Keep the current SSH session open while changing firewall rules.
-
-### 5.1 Allow SSH from the administrator
-
-On the **Database Server**:
+SSH ကို approved administrator IP ကဝင်ခွင့်ပေးပါ:
 
 ```bash
-sudo ufw allow from <ADMIN_PRIVATE_IP> to <DB_PRIVATE_IP> port 22 proto tcp
+sudo ufw allow from <ADMIN_PRIVATE_IP> \
+  to <DB_PRIVATE_IP> port 22 proto tcp
 ```
 
-Open a second SSH connection and confirm it works before removing any older SSH
-rule.
-
-### 5.2 Allow MariaDB only from the App Server
-
-```bash
-sudo ufw allow from <APP_PRIVATE_IP> to <DB_PRIVATE_IP> port 3306 proto tcp
-```
-
-Add one exact rule for each App Server if there are multiple application
-servers. A load balancer normally does not need MariaDB access.
-
-### 5.3 Enable the firewall policy
+Firewall enable လုပ်ပြီးစစ်ပါ:
 
 ```bash
 sudo ufw default deny incoming
@@ -267,90 +212,62 @@ sudo ufw reload
 sudo ufw status numbered
 ```
 
-The database rule should have this shape:
+Database rule က ဒီလိုဖြစ်ရပါမယ်:
 
 ```text
 <DB_PRIVATE_IP> 3306/tcp  ALLOW IN  <APP_PRIVATE_IP>
 ```
 
-Also add the same narrow rule to any Proxmox firewall, VLAN ACL, router ACL, or
-cloud security group:
+Proxmox firewall, VLAN ACL သို့မဟုတ် Cloud firewall ရှိရင် အဲဒီနေရာမှာလည်း
+App Server `<APP_PRIVATE_IP>/32` က DB port `3306` ကိုပဲ allow လုပ်ပါ။
+`0.0.0.0/0` ကို မဖွင့်ပါနဲ့။
 
-```text
-Source:      <APP_PRIVATE_IP>/32
-Destination: <DB_PRIVATE_IP>
-Protocol:    TCP
-Port:        3306
-Action:      Allow
-```
+## Step 6: App Server ကနေ Network Test လုပ်ပါ
 
-Never allow MariaDB from `0.0.0.0/0`.
-
-## Step 6: Test the TCP Path
-
-Run locally on the **Database Server**:
-
-```bash
-nc -vz -w 5 <DB_PRIVATE_IP> 3306
-```
-
-Run on the **App Server**:
+App Server မှာ run ပါ:
 
 ```bash
 ip route get <DB_PRIVATE_IP>
 nc -vz -w 5 <DB_PRIVATE_IP> 3306
 ```
 
-Required result:
+အောက်ပါ result ရရပါမယ်:
 
 ```text
 Connection to <DB_PRIVATE_IP> 3306 port [tcp/mysql] succeeded!
 ```
 
-This proves only that TCP routing, MariaDB listening, and firewalls work. It
-does not prove that a MariaDB username, password, database, or grant is valid.
+Result အဓိပ္ပာယ်:
 
-### Troubleshooting a failed port test
+| Result | Meaning |
+|---|---|
+| `succeeded` | Network နဲ့ Firewall အဆင်ပြေပြီ |
+| `Connection refused` | MariaDB service သို့မဟုတ် bind address မှားနေတယ် |
+| `timed out` | UFW, VLAN သို့မဟုတ် upstream firewall ပိတ်နေတယ် |
+| `No route to host` | Server route/gateway မရှိသေးဘူး |
 
-| Result | Likely cause | Check |
-|---|---|---|
-| `Connection refused` | MariaDB is not listening on the target | `systemctl status mariadb` and `ss -lntp` |
-| `timed out` | A host or upstream firewall drops traffic | Routed source IP, UFW, VLAN, and provider rules |
-| `No route to host` | Routing or subnet configuration is missing | Gateway, route table, and VLAN configuration |
+Port test အောင်မှ နောက်တစ်ဆင့်ဆက်ပါ။
 
-For a timeout, run on the Database Server:
+## Step 7: Temporary Provisioning User ဆောက်ပါ
 
-```bash
-sudo tcpdump -ni any 'tcp port 3306'
-```
+`setup.sh` က `dpuat` database နဲ့ runtime user ဆောက်နိုင်ဖို့ temporary
+privileged account တစ်ခုလိုပါတယ်။ ဒီ account က MySQL Workbench user မဟုတ်ပါ။
 
-Repeat `nc` from the App Server:
-
-- no packet arrives: an upstream route or firewall is blocking it;
-- a SYN arrives from a different source: use that verified source in the rule;
-- a SYN arrives but there is no SYN-ACK: inspect UFW/nftables locally;
-- both directions appear: inspect the return route and App Server firewall.
-
-## Step 7: Create a Temporary Provisioning Account
-
-This account is required for a **fresh site** because `bench new-site` must
-create the site database and runtime user. An existing-site migration that
-creates its database and runtime user manually may skip this step.
-
-Open MariaDB on the **Database Server**:
+Database Server မှာ MariaDB ဝင်ပါ:
 
 ```bash
 sudo mariadb
 ```
 
-Create a strong, temporary account restricted to `<APP_PRIVATE_IP>`:
+App Server IP ကိုပဲ ခွင့်ပြုပြီး user ဆောက်ပါ:
 
 ```sql
 CREATE USER 'frappe_provisioner'@'<APP_PRIVATE_IP>'
   IDENTIFIED BY '<STRONG_PROVISIONER_PASSWORD>';
 
 GRANT ALL PRIVILEGES ON *.*
-  TO 'frappe_provisioner'@'<APP_PRIVATE_IP>' WITH GRANT OPTION;
+  TO 'frappe_provisioner'@'<APP_PRIVATE_IP>'
+  WITH GRANT OPTION;
 
 FLUSH PRIVILEGES;
 
@@ -358,19 +275,19 @@ SHOW GRANTS FOR 'frappe_provisioner'@'<APP_PRIVATE_IP>';
 EXIT;
 ```
 
-Do not use a MySQL Workbench account as `DB_ROOT_USERNAME`. The provisioning
-account is powerful and must be removed after fresh-site creation.
+`<STRONG_PROVISIONER_PASSWORD>` နေရာမှာ random strong password သုံးပါ။
+`admin` မသုံးပါနဲ့။ ဒီ user ကို setup ပြီးရင် Step 13 မှာဖျက်ပါမယ်။
 
-## Step 8: Test MariaDB Authentication
+## Step 8: Provisioning Login Test လုပ်ပါ
 
-Install a MariaDB client on the **App Server** if required:
+App Server မှာ MariaDB client install လုပ်ပါ:
 
 ```bash
 sudo apt update
 sudo apt install -y mariadb-client
 ```
 
-For the fresh-site path, test the temporary provisioner:
+Provisioning account နဲ့ login စမ်းပါ:
 
 ```bash
 mariadb --protocol=TCP \
@@ -381,409 +298,163 @@ mariadb --protocol=TCP \
   --execute="SELECT VERSION(), USER(), CURRENT_USER();"
 ```
 
-Enter the password only at the prompt. `CURRENT_USER()` must show the account
-with the expected App Server host restriction.
+Password prompt မှာ `<STRONG_PROVISIONER_PASSWORD>` ကိုထည့်ပါ။ Command ထဲမှာ
+password ကို တိုက်ရိုက်မရေးပါနဲ့။
 
-An `Access denied` result means the username, password, or MariaDB `Host` value
-does not match. Do not change the host to `%` as a shortcut.
+`CURRENT_USER()` က အောက်ပါအတိုင်းပြရပါမယ်:
 
-## Step 9: Back Up the App Server Configuration
+```text
+frappe_provisioner@<APP_PRIVATE_IP>
+```
 
-Before either setup path, back up the Frappe site configuration and record the
-current Compose state.
+`Access denied` ဖြစ်ရင် `.env` မပြင်သေးဘဲ MariaDB user, Host နဲ့ password ကို
+အရင်ပြန်စစ်ပါ။
 
-Run on the **App Server**:
+## Step 9: Site အဟောင်းမရှိကြောင်း သေချာပါစေ
+
+ဒီအဆင့်က အရေးကြီးပါတယ်။ `setup.sh` က `frontend` site ရှိပြီးသားဆိုရင်
+`bench new-site` မလုပ်ပါဘူး။ အဲဒီအခါ `.env` ထဲက `DB_NAME` နဲ့ `DB_PASSWORD`
+ကို ignore လုပ်ပါတယ်။
+
+App Server မှာစစ်ပါ:
 
 ```bash
 cd ~/my-frappe-setup/docker-setup
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml ps
+
+docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
+  exec backend bench list-sites
 ```
 
-If `<SITE_DOMAIN>` already exists, back up its configuration inside the shared
-sites volume:
+- `frontend` မရှိရင် first setup ကို ဆက်လုပ်နိုင်ပါတယ်။
+- `frontend` ရှိရင် ဒီ guide ကို ရပ်ပါ။ Site သို့မဟုတ် Docker volume ကို မဖျက်ပါနဲ့။
+  Existing-site migration procedure ကိုသုံးပါ။
+- Containers မရှိသေးလို့ command မ run နိုင်တာက fresh server မှာ ပုံမှန်ဖြစ်ပါတယ်။
+
+Database Server မှာ `dpuat` ရှိပြီးသားလားလည်းစစ်ပါ:
 
 ```bash
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  exec backend cp \
-  sites/<SITE_DOMAIN>/site_config.json \
-  sites/<SITE_DOMAIN>/site_config.json.before-external-db
+sudo mariadb --execute="SHOW DATABASES LIKE 'dpuat';"
 ```
 
-Display it with secrets redacted:
+Fresh setup အတွက် `dpuat` database ကို ကြိုဆောက်စရာမလိုပါ။ `setup.sh` က
+ဆောက်ပေးမှာပါ။ `dpuat` ရှိပြီးသား သို့မဟုတ် imported data ရှိရင် မဖျက်ပါနဲ့။
+Existing-site migration ကိုသုံးပါ သို့မဟုတ် first setup အတွက် မသုံးရသေးတဲ့
+database name အသစ်ရွေးပါ။
+
+## Step 10: App Server `.env` ပြင်ပါ
+
+App Server မှာ file ကိုဖွင့်ပါ:
 
 ```bash
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  exec backend jq \
-  'if .db_password then .db_password="<redacted>" else . end
-   | if .encryption_key then .encryption_key="<redacted>" else . end
-   | if .s3_secret_key then .s3_secret_key="<redacted>" else . end' \
-  sites/<SITE_DOMAIN>/site_config.json
+cd ~/my-frappe-setup/docker-setup
+cp .env .env.before-external-db
+nano .env
 ```
 
-Never replace or regenerate an existing site's `encryption_key`. It is needed
-to decrypt credentials already stored by Frappe.
-
-## Step 10: Fresh Site Setup
-
-Use this path only when `<SITE_DOMAIN>` does not already exist and no existing
-database is being imported.
-
-### 10.1 Configure `.env`
-
-Edit `docker-setup/.env` on the **App Server**:
+`SITE_DOMAIN` နဲ့ Database section ကို အောက်ပါအတိုင်းထားပါ:
 
 ```env
+SITE_DOMAIN=frontend
+
+# External Database Server ကိုသုံးမယ်။
 DATABASE_MODE=external
 DB_HOST=<DB_PRIVATE_IP>
 DB_PORT=3306
 
-# Keep valid values for local mode/rollback. They are not external credentials.
-MYSQL_ROOT_PASSWORD=<LOCAL_COMPOSE_DB_ROOT_PASSWORD>
-MARIADB_ROOT_PASSWORD=<LOCAL_COMPOSE_DB_ROOT_PASSWORD>
+# Local Compose DB အတွက် values ဖြစ်တယ်။ External login အတွက် မသုံးဘူး။
+# Strong values ထားပြီး Git ထဲ မတင်ပါနဲ့။
+MYSQL_ROOT_PASSWORD=<STRONG_LOCAL_DB_ROOT_PASSWORD>
+MARIADB_ROOT_PASSWORD=<STRONG_LOCAL_DB_ROOT_PASSWORD>
 
-# Temporary external provisioning account used by bench new-site.
+# Step 7 မှာဆောက်ခဲ့တဲ့ temporary external provisioning account။
 DB_ROOT_USERNAME=frappe_provisioner
 DB_ROOT_PASSWORD=<STRONG_PROVISIONER_PASSWORD>
 
+# External DB ကို automatic credential repair မလုပ်ခိုင်းရန်။
 ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=false
 
-# New site's database name and runtime-user password.
+# First setup မှာ ဆောက်မယ့် site database နဲ့ runtime-user password။
 DB_NAME=dpuat
 DB_PASSWORD=<STRONG_SITE_DATABASE_PASSWORD>
 ```
 
-For a fresh site:
+### Variable တစ်ခုချင်းအဓိပ္ပာယ်
 
-- `DB_NAME=dpuat` tells `bench new-site` to create/use a database named
-  `dpuat`;
-- `DB_PASSWORD` becomes the normal site database user's password;
-- `DB_ROOT_USERNAME` and `DB_ROOT_PASSWORD` authorize the creation operation;
-- `MYSQL_ROOT_PASSWORD` and `MARIADB_ROOT_PASSWORD` belong to local mode and
-  are not used to authenticate to the external server.
+| Variable | First setup မှာဘာလုပ်သလဲ |
+|---|---|
+| `DATABASE_MODE=external` | Bundled `db` service အစား သီးခြား MariaDB ကိုသုံးစေတယ် |
+| `DB_HOST` | Database Server ရဲ့ private IP ဖြစ်တယ် |
+| `DB_PORT` | MariaDB port ဖြစ်တယ် |
+| `DB_ROOT_USERNAME` | Database/user ဆောက်ခွင့်ရှိတဲ့ temporary provisioner ဖြစ်တယ် |
+| `DB_ROOT_PASSWORD` | Provisioner password ဖြစ်တယ် |
+| `DB_NAME=dpuat` | `bench new-site` က `dpuat` database ဆောက်စေတယ် |
+| `DB_PASSWORD` | Frappe runtime database user ရဲ့ password ဖြစ်လာမယ် |
+| `ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=false` | External DB credential ကို setup က အလိုအလျောက်ပြင်ခြင်းပိတ်ထားတယ် |
+| `MYSQL_ROOT_PASSWORD` | Local Compose DB အတွက်သာဖြစ်ပြီး external MariaDB password မဟုတ်ဘူး |
+| `MARIADB_ROOT_PASSWORD` | Local Compose DB compatibility value ဖြစ်တယ် |
 
-Do not use `admin`, a reused password, or any password committed to Git.
+Password နှစ်မျိုးကို မရောပါနဲ့:
 
-### 10.2 Run setup
+```text
+DB_ROOT_PASSWORD = setup အချိန် database/user ဆောက်ပေးမယ့် temporary password
+DB_PASSWORD      = site အမြဲသုံးမယ့် dpuat runtime-user password
+```
+
+ဒီ guide မှာ `DB_ROOT_USERNAME=workbench_uat` မသုံးပါ။ Workbench account က
+human database access အတွက်ဖြစ်ပြီး Frappe provisioning account မဟုတ်ပါ။
+
+`.env` ကို repository ထဲ commit မဖြစ်အောင်စစ်ပါ:
+
+```bash
+git check-ignore .env
+```
+
+`.env` လို့ output ထွက်ရပါမယ်။
+
+## Step 11: First Setup Run ပါ
+
+App Server မှာ:
 
 ```bash
 cd ~/my-frappe-setup/docker-setup
 ./setup.sh
 ```
 
-Before confirming setup, verify the displayed target:
+Confirmation မပေးခင် summary ထဲမှာ ဒီလိုပြတာသေချာပါစေ:
 
 ```text
 Database: external (<DB_PRIVATE_IP>:3306)
 ```
 
-For a new site, `setup.sh` passes `DB_NAME`, `DB_PASSWORD`, and the temporary
-provisioning credentials to `bench new-site`. Frappe then writes the runtime
-database name, username, and password into
-`sites/<SITE_DOMAIN>/site_config.json` automatically.
+`Database: local (db:3306)` လို့ပြနေရင် setup ကို cancel လုပ်ပြီး `.env`
+ပြန်စစ်ပါ။
 
-Continue at Step 12.
+First setup အောင်မြင်တဲ့အခါ script က:
 
-## Step 11: Existing Site Migration
+1. `<DB_PRIVATE_IP>:3306` network connection စစ်မယ်;
+2. Frappe, Redis, workers နဲ့ scheduler containers စမယ်;
+3. `common_site_config.json` မှာ external `db_host` ရေးမယ်;
+4. `bench new-site frontend` run မယ်;
+5. MariaDB မှာ `dpuat` database နဲ့ runtime user ဆောက်မယ်;
+6. `site_config.json` မှာ database login ကို အလိုအလျောက်ရေးမယ်;
+7. configured apps တွေ install လုပ်ပြီး migrate လုပ်မယ်။
 
-Use a maintenance window. This path moves an existing site from the bundled
-MariaDB service to the external server.
+## Step 12: Setup Result Verify လုပ်ပါ
 
-### 11.1 Keep the old local database available
-
-Do not run `cleanup.sh`, remove Docker volumes, or delete the local database.
-The unchanged local database is the fastest rollback point until external
-database acceptance is complete.
-
-Keep the current `.env` in local mode while producing the final backup:
-
-```env
-DATABASE_MODE=local
-DB_HOST=db
-DB_PORT=3306
-```
-
-### 11.2 Inspect the current site database identity
+### 12.1 Containers စစ်ပါ
 
 ```bash
-cd ~/my-frappe-setup/docker-setup
-
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  exec backend jq \
-  '{db_name, db_user, db_password:
-    (if .db_password then "<redacted>" else null end)}' \
-  sites/<SITE_DOMAIN>/site_config.json
-```
-
-Record `db_name` and `db_user` securely. Do not paste the real password into a
-ticket, screenshot, or chat.
-
-### 11.3 Stop writes and take the final backup
-
-Enable maintenance mode:
-
-```bash
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  exec backend bench --site <SITE_DOMAIN> set-maintenance-mode on
-```
-
-Stop background writers:
-
-```bash
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  stop scheduler queue-short queue-long
-```
-
-Create the final backup:
-
-```bash
-./backup.sh
-```
-
-Verify that the newest backup directory contains non-empty files matching:
-
-```text
-*-database.sql.gz
-*-files.tar
-*-private-files.tar
-*-site_config_backup.json
-```
-
-Do not allow writes to resume on the old database after this final backup.
-
-### 11.4 Choose the database naming strategy
-
-Choose exactly one option:
-
-#### Option A — preserve the original database identity (recommended)
-
-Create the external database and runtime user with the same `db_name`,
-`db_user`, and password already stored in `site_config.json`.
-
-Advantages:
-
-- no `site_config.json` database credential change;
-- fewer moving parts during cutover;
-- `.env` needs to change only the database server address.
-
-For example, if the current site uses `_example_site_database`, import into that
-same database and create that same runtime username on the external server.
-
-#### Option B — rename the imported database
-
-Import into a new name such as `dpuat`, create a runtime user named `dpuat`,
-and update the existing site's `site_config.json` once:
-
-```json
-{
-  "db_name": "dpuat",
-  "db_user": "dpuat",
-  "db_password": "<STRONG_SITE_DATABASE_PASSWORD>"
-}
-```
-
-This update cannot be controlled by `DB_NAME=dpuat` in `.env`, because
-`setup.sh` uses `DB_NAME` only during new-site creation. Keep every unrelated
-key in `site_config.json`, especially `encryption_key`, unchanged.
-
-### 11.5 Create the database and runtime user
-
-Open MariaDB locally on the **Database Server**:
-
-```bash
-sudo mariadb
-```
-
-For Option B using `dpuat`:
-
-```sql
-CREATE DATABASE `dpuat`
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-CREATE USER 'dpuat'@'<APP_PRIVATE_IP>'
-  IDENTIFIED BY '<STRONG_SITE_DATABASE_PASSWORD>';
-
-GRANT ALL PRIVILEGES ON `dpuat`.*
-  TO 'dpuat'@'<APP_PRIVATE_IP>';
-
-FLUSH PRIVILEGES;
-SHOW GRANTS FOR 'dpuat'@'<APP_PRIVATE_IP>';
-EXIT;
-```
-
-If the database or user already exists, inspect it before changing anything:
-
-```sql
-SHOW DATABASES LIKE 'dpuat';
-SELECT User, Host FROM mysql.user WHERE User = 'dpuat';
-SHOW GRANTS FOR 'dpuat'@'<APP_PRIVATE_IP>';
-```
-
-Use `ALTER USER` only when intentionally rotating an existing password. Do not
-grant the runtime user `*.*` or `WITH GRANT OPTION`.
-
-For Option A, replace `dpuat` in the SQL with the exact existing database and
-runtime-user names. MariaDB identifiers containing special characters must
-remain enclosed in backticks.
-
-### 11.6 Import the final database dump
-
-Securely copy the final `*-database.sql.gz` file to the Database Server. Then
-run on the **Database Server**:
-
-```bash
-gzip -dc /path/to/<SITE_DATABASE_BACKUP>-database.sql.gz \
-  | sudo mariadb --database=<TARGET_DATABASE_NAME>
-```
-
-Verify that tables exist:
-
-```bash
-sudo mariadb --execute="
-SELECT COUNT(*) AS table_count
-FROM information_schema.tables
-WHERE table_schema = '<TARGET_DATABASE_NAME>';
-"
-```
-
-`table_count` must be greater than zero.
-
-If the database was already imported before maintenance mode was enabled, that
-copy may be stale. Take and import a new final backup before cutover.
-
-### 11.7 Update `site_config.json` only for Option B
-
-Skip this section for Option A.
-
-Open a shell in the backend container:
-
-```bash
-cd ~/my-frappe-setup/docker-setup
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  exec backend bash
-```
-
-Back up the file and update the non-secret values:
-
-```bash
-cd ~/frappe-bench
-cp sites/<SITE_DOMAIN>/site_config.json \
-  sites/<SITE_DOMAIN>/site_config.json.before-db-name-change
-
-bench --site <SITE_DOMAIN> set-config db_name dpuat
-bench --site <SITE_DOMAIN> set-config db_user dpuat
-```
-
-Read the password without storing the literal value in shell history, set it,
-and immediately clear the shell variable:
-
-```bash
-read -rsp "Site database password: " SITE_DATABASE_PASSWORD
-printf '\n'
-bench --site <SITE_DOMAIN> set-config db_password "$SITE_DATABASE_PASSWORD"
-unset SITE_DATABASE_PASSWORD
-```
-
-The resulting database keys are:
-
-```json
-{
-  "db_name": "dpuat",
-  "db_user": "dpuat",
-  "db_password": "<STRONG_SITE_DATABASE_PASSWORD>"
-}
-```
-
-Validate the JSON:
-
-```bash
-jq empty sites/<SITE_DOMAIN>/site_config.json
-```
-
-No output means the JSON is valid.
-
-### 11.8 Test the runtime account before switching
-
-Run on the **App Server**:
-
-```bash
-mariadb --protocol=TCP \
-  --host=<DB_PRIVATE_IP> \
-  --port=3306 \
-  --user=<SITE_DB_USER> \
-  --password \
-  <TARGET_DATABASE_NAME> \
-  --execute="SELECT DATABASE(), USER(), CURRENT_USER(); SHOW TABLES;"
-```
-
-This must succeed with the same database username and password that the site
-will use.
-
-### 11.9 Configure `.env` for the existing site
-
-Edit `docker-setup/.env`:
-
-```env
-DATABASE_MODE=external
-DB_HOST=<DB_PRIVATE_IP>
-DB_PORT=3306
-
-# Preserve the existing local-mode values for rollback.
-MYSQL_ROOT_PASSWORD=<EXISTING_LOCAL_DB_ROOT_PASSWORD>
-MARIADB_ROOT_PASSWORD=<EXISTING_LOCAL_DB_ROOT_PASSWORD>
-
-# Not required because the DB and runtime user were created manually.
-DB_ROOT_USERNAME=
-DB_ROOT_PASSWORD=
-ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=false
-
-# Ignored for an existing site; site_config.json is authoritative.
-DB_NAME=
-DB_PASSWORD=
-```
-
-Do not put a MySQL Workbench account in `DB_ROOT_USERNAME`. Do not expect
-`DB_NAME=dpuat` here to rewrite an existing `site_config.json`.
-
-### 11.10 Run setup and switch the connection
-
-```bash
-cd ~/my-frappe-setup/docker-setup
-./setup.sh
-```
-
-`setup.sh` will:
-
-1. validate TCP reachability to `<DB_PRIVATE_IP>:3306`;
-2. start/recreate Frappe services without starting a new bundled database;
-3. run the configurator, which writes `db_host` and `db_port` into
-   `sites/common_site_config.json`;
-4. detect the existing `<SITE_DOMAIN>` directory;
-5. verify that the site can authenticate with `site_config.json`;
-6. install/update apps and run migrations.
-
-It will not run `bench new-site` when the existing site is detected, and it
-will not use `.env` `DB_NAME`/`DB_PASSWORD` to replace existing credentials.
-
-Continue at Step 12.
-
-## Step 12: Verify the Active External Connection
-
-Check service state on the **App Server**:
-
-```bash
-cd ~/my-frappe-setup/docker-setup
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml ps
 ```
 
-Verify the shared database address:
+### 12.2 Shared Database Host စစ်ပါ
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
   exec backend cat sites/common_site_config.json
 ```
 
-Required values:
+အနည်းဆုံး ဒီ values ပါရပါမယ်:
 
 ```json
 {
@@ -792,61 +463,48 @@ Required values:
 }
 ```
 
-Verify the site configuration with secrets redacted:
+### 12.3 Site Database Config စစ်ပါ
+
+Password ကို ဖျောက်ပြီးကြည့်ပါ:
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
   exec backend jq \
   '{db_name, db_user, db_password:
     (if .db_password then "<redacted>" else null end)}' \
-  sites/<SITE_DOMAIN>/site_config.json
+  sites/frontend/site_config.json
 ```
 
-Verify Frappe can query the site:
+Expected result:
+
+```json
+{
+  "db_name": "dpuat",
+  "db_user": "dpuat",
+  "db_password": "<redacted>"
+}
+```
+
+### 12.4 Frappe Database Query စစ်ပါ
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  exec backend bench --site <SITE_DOMAIN> list-apps
+  exec backend bench --site frontend list-apps
 ```
 
-Verify the connection from inside the backend container:
+Installed apps list ထွက်လာရင် Frappe က external database နဲ့ authenticate
+လုပ်နိုင်ပါပြီ။
 
-```bash
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  exec backend python3 -c \
-  "import socket; print(socket.create_connection(('<DB_PRIVATE_IP>', 3306), 5).getpeername())"
-```
+### 12.5 Application စမ်းပါ
 
-Finally test through the application:
+1. Browser ကနေ login ဝင်ပါ။
+2. Test record တစ်ခု create/save/read လုပ်ပါ။
+3. Background job နဲ့ scheduler အလုပ်လုပ်တာစစ်ပါ။
+4. `./backup.sh` run ပြီး non-empty database backup ထွက်တာစစ်ပါ။
 
-1. Login works.
-2. Existing records are present.
-3. A permitted record can be created, read, updated, and deleted.
-4. Background jobs and scheduled jobs run successfully.
-5. Public and private files open correctly.
-6. `./backup.sh` creates a non-empty external-database backup.
-7. A restore is tested in an approved non-production environment.
+## Step 13: Temporary Provisioner ကိုဖျက်ပါ
 
-For an existing-site migration, disable maintenance mode only after these
-checks pass:
-
-```bash
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  exec backend bench --site <SITE_DOMAIN> set-maintenance-mode off
-```
-
-Ensure the scheduler and workers are running:
-
-```bash
-docker compose -f pwd-with-apps.yml -f docker-compose.override.yml \
-  up -d scheduler queue-short queue-long
-```
-
-## Step 13: Remove Temporary Provisioning Access
-
-This step applies to the fresh-site path. Do it only after Step 12 succeeds.
-
-On the **Database Server**:
+Step 12 အားလုံးအောင်မှ Database Server မှာဖျက်ပါ:
 
 ```bash
 sudo mariadb
@@ -858,7 +516,7 @@ FLUSH PRIVILEGES;
 EXIT;
 ```
 
-Clear the temporary credentials from `.env`:
+App Server `.env` မှာ temporary credentials ကိုရှင်းပါ:
 
 ```env
 DB_ROOT_USERNAME=
@@ -866,7 +524,7 @@ DB_ROOT_PASSWORD=
 ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=false
 ```
 
-Keep these settings:
+အောက်ပါ runtime connection values ကို မပြောင်းပါနဲ့:
 
 ```env
 DATABASE_MODE=external
@@ -874,78 +532,101 @@ DB_HOST=<DB_PRIVATE_IP>
 DB_PORT=3306
 ```
 
-The normal site user stored in `site_config.json` continues to connect to its
-own database. The UFW `3306` rule for the App Server must remain.
+`DB_NAME` နဲ့ `DB_PASSWORD` က site ဖန်တီးပြီးနောက် existing site ကို
+ပြန်configure မလုပ်ပေးတော့ပါ။ Site က `site_config.json` ထဲမှာ setup ရေးပေးထားတဲ့
+runtime credentials ကိုဆက်သုံးပါတယ်။
 
-## Step 14: Rollback Plan
+## Step 14: Optional Runtime User Hardening
 
-### Before any writes reach the external database
+`bench new-site` ဖန်တီးထားတဲ့ runtime account ရဲ့ Host ကိုစစ်ပါ:
 
-If the cutover fails before external writes are accepted:
-
-1. set `DATABASE_MODE=local`, `DB_HOST=db`, and `DB_PORT=3306` in `.env`;
-2. restore the original `site_config.json` if Option B changed it;
-3. run `./setup.sh`;
-4. verify the site against the unchanged local database;
-5. disable maintenance mode only after verification.
-
-### After writes reach the external database
-
-Do not simply point Frappe back to the old local database. It no longer
-contains the new writes. Take a new external backup and perform a controlled
-reverse migration or restore.
-
-Do not run `cleanup.sh` while the local database volume is being retained for
-rollback.
-
-## Optional: MySQL Workbench Access
-
-Use a separate, least-privilege account for administration or reporting. Do not
-reuse `frappe_provisioner`, the site runtime account, or MariaDB `root`.
-
-When using **Standard TCP/IP over SSH** to the Database Server:
-
-```text
-SSH Hostname:   <DB_PRIVATE_IP>:22
-SSH Username:   <SSH_USER>
-MySQL Hostname: <DB_PRIVATE_IP>
-MySQL Port:     3306
-Username:       <WORKBENCH_USER>
+```bash
+sudo mariadb --execute="
+SELECT User, Host
+FROM mysql.user
+WHERE User = 'dpuat';
+"
 ```
 
-Because this guide binds MariaDB to `<DB_PRIVATE_IP>`, using `127.0.0.1` as the
-MySQL Hostname may fail unless MariaDB is also explicitly configured to listen
-on loopback.
+Runtime user ကို `%` Host နဲ့ဖန်တီးထားရင် maintenance window အတွင်း
+`<APP_PRIVATE_IP>` App Server IP ကိုပဲခွင့်ပြုဖို့ harden လုပ်နိုင်ပါတယ်။ Exact-host
+account အသစ်နဲ့ login အောင်တာကိုအရင်စစ်ပြီးမှ wildcard account ကိုဖျက်ပါ။
+Multiple App Servers သုံးမယ်ဆို App Server တစ်လုံးချင်းစီအတွက် exact Host account
+နဲ့ firewall rule လိုပါတယ်။
 
-A read-only example for one site database is:
+## Common Errors
+
+### `nc` command timed out
+
+Database Server မှာ:
+
+```bash
+sudo ss -lntp | grep ':3306'
+sudo ufw status numbered
+sudo tcpdump -ni any 'tcp port 3306'
+```
+
+App Server က `nc` ပြန် run လုပ်ပြီး packet Database Server ထိရောက်လားစစ်ပါ။
+
+### `Access denied for user 'frappe_provisioner'`
+
+Database Server မှာ:
 
 ```sql
-CREATE USER 'workbench_readonly'@'<DB_PRIVATE_IP>'
-  IDENTIFIED BY '<STRONG_WORKBENCH_PASSWORD>';
+SELECT User, Host
+FROM mysql.user
+WHERE User = 'frappe_provisioner';
 
-GRANT SELECT, SHOW VIEW ON `dpuat`.*
-  TO 'workbench_readonly'@'<DB_PRIVATE_IP>';
-
-FLUSH PRIVILEGES;
+SHOW GRANTS FOR 'frappe_provisioner'@'<APP_PRIVATE_IP>';
 ```
 
-The MariaDB `Host` value seen through an SSH tunnel is commonly the Database
-Server address, not the administrator workstation address. Confirm it in the
-actual environment and keep the account limited to the required database.
+App Server ရဲ့ routed source IP, MariaDB Host value နဲ့ password တူရပါမယ်။
 
-## Final Acceptance Checklist
+### `Database dpuat already exists`
 
-- [ ] The deployment is classified as fresh or existing before setup.
-- [ ] `<APP_PRIVATE_IP>` comes from `ip route get <DB_PRIVATE_IP>`.
-- [ ] MariaDB matches the deployed Frappe branch requirement.
-- [ ] MariaDB listens on the private database address only.
-- [ ] Host and upstream firewalls allow `3306` only from approved App Servers.
-- [ ] `nc -vz -w 5` succeeds from the App Server.
-- [ ] MariaDB authentication succeeds with the account required by the chosen path.
-- [ ] A fresh site uses `.env` `DB_NAME` and `DB_PASSWORD` during creation.
-- [ ] An existing site uses `site_config.json` for its runtime database identity.
-- [ ] `common_site_config.json` contains the external `db_host` and `db_port`.
-- [ ] Existing records, login, read/write operations, workers, scheduler, and files are verified.
-- [ ] A non-empty backup and a non-production restore test are verified.
-- [ ] The temporary provisioner is removed after fresh-site acceptance.
-- [ ] The rollback database/backup is retained until the cutover is accepted.
+ဒီ deployment က fresh setup မဟုတ်နိုင်ပါ။ Database ကိုမဖျက်ပါနဲ့။ Existing data
+ရှိမရှိစစ်ပြီး migration procedure ကိုသုံးပါ သို့မဟုတ် unused database name
+အသစ်ရွေးပါ။
+
+### `Site frontend already exists`
+
+`setup.sh` က `DB_NAME`/`DB_PASSWORD` ကိုမသုံးတော့ဘဲ existing
+`site_config.json` ကိုသုံးမှာပါ။ Site ကိုမဖျက်ပါနဲ့။ Existing-site migration
+procedure ကိုသုံးပါ။
+
+### `common_site_config.json` မှာ `"db_host": "db"` ဖြစ်နေတယ်
+
+`.env` ကို run နေတဲ့ `docker-setup` directory မှာပဲပြင်ထားလား စစ်ပါ:
+
+```bash
+cd ~/my-frappe-setup/docker-setup
+grep -E '^(DATABASE_MODE|DB_HOST|DB_PORT)=' .env
+```
+
+Expected:
+
+```text
+DATABASE_MODE=external
+DB_HOST=<DB_PRIVATE_IP>
+DB_PORT=3306
+```
+
+ပြီးလျှင် `./setup.sh` ကို ပြန် run ပါ။ Configurator က
+`common_site_config.json` ကို update လုပ်ပေးပါမယ်။
+
+## Final Checklist
+
+- [ ] ဒီ deployment မှာ `frontend` site နဲ့ imported database မရှိသေးပါ။
+- [ ] MariaDB `11.8` running ဖြစ်ပါတယ်။
+- [ ] MariaDB က `<DB_PRIVATE_IP>:3306` မှာ listen လုပ်ပါတယ်။
+- [ ] UFW က `<APP_PRIVATE_IP>` App Server ကိုပဲ `3306` ခွင့်ပြုပါတယ်။
+- [ ] App Server က `nc` test အောင်ပါတယ်။
+- [ ] `frappe_provisioner` authentication test အောင်ပါတယ်။
+- [ ] `.env` မှာ `DATABASE_MODE=external` ဖြစ်ပါတယ်။
+- [ ] `.env` မှာ first setup အတွက် `DB_NAME=dpuat` သတ်မှတ်ထားပါတယ်။
+- [ ] Setup summary မှာ external Database IP မှန်ပါတယ်။
+- [ ] `common_site_config.json` မှာ external `db_host` ဖြစ်ပါတယ်။
+- [ ] `site_config.json` မှာ `dpuat` runtime credentials အလိုအလျောက်ရှိပါတယ်။
+- [ ] `bench --site frontend list-apps` အောင်ပါတယ်။
+- [ ] Login, record write, workers, scheduler နဲ့ backup စစ်ပြီးပါပြီ။
+- [ ] Temporary `frappe_provisioner` account ကိုဖျက်ပြီးပါပြီ။

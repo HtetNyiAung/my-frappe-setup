@@ -6,9 +6,9 @@ server. The default remains local so existing installations continue to work.
 For commands to install, secure, firewall, back up, and monitor MariaDB on a
 separate Ubuntu VM, follow
 [External MariaDB on an Ubuntu VM](external-database-ubuntu.md). That document
-is the canonical step-by-step procedure for fresh setup, existing-site
-migration, verification, and rollback. This document is a concise connection
-mode overview.
+is the canonical step-by-step procedure for a fresh first setup. This document
+remains the canonical guide for connection modes, existing-site migration, and
+rollback.
 
 ## Modes
 
