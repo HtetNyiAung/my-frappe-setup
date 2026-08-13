@@ -1,105 +1,119 @@
-# Custom App Development Guide (Frappe Docker)
+# Custom App Development လမ်းညွှန် (Frappe Docker)
 
-This guide explains how to create, develop, and manage custom Frappe apps (like `mdea_custom`) within this Docker-based development environment.
+ဒီလမ်းညွှန်သည် Docker-based Development environment ထဲတွင် Custom Frappe
+App တစ်ခုကို ဖန်တီးခြင်း၊ Version Control သတ်မှတ်ခြင်း၊ Setup နှင့်ချိတ်ဆက်ခြင်း၊
+Development လုပ်ခြင်းတို့ကို ရှင်းပြထားသည်။
 
----
+## 1. Custom App အသစ်ဖန်တီးခြင်း
 
-## 1. Creating a New Custom App
+Containers များ run နေချိန်တွင် Backend container ထဲဝင်ပါ။
 
-To create a new app from scratch while the containers are running:
+```bash
+cd docker-setup
+docker compose exec backend bash
+```
 
-1. **Enter the Backend Container**:
-   ```bash
-   cd docker-setup
-   docker compose exec backend bash
-   ```
+App boilerplate ဖန်တီးပါ။
 
-2. **Generate App Boilerplate**:
-   ```bash
-   bench new-app <app_name>
-   ```
-   *Example: `bench new-app mdea_custom`*
-   Provide the requested details (Title, Description, Publisher, etc.).
+```bash
+bench new-app <app_name>
+```
 
-3. **Sync to Host (One-Time Step)**:
-   If the app remains only inside the container, copy it out to your host:
-   ```bash
-   # From host, create the folder first
-   mkdir -p ../apps/mdea_custom
-   
-   # Copy code from container to host
-   docker cp docker-setup-backend-1:/home/frappe/frappe-bench/apps/mdea_custom/. ../apps/mdea_custom/
-   ```
+Prompt တွင် Title, Description, Publisher စသည့် အချက်အလက်များကို ဖြည့်ပါ။
+App သည် Container ထဲတွင်သာရှိပါက Host သို့ တစ်ကြိမ်ကူးပါ။ အောက်ပါ
+`<app_name>` နှင့် Container အမည်ကို မိမိ environment နှင့်ကိုက်ညီအောင်
+ပြောင်းရမည်။
 
----
+```bash
+# Host တွင် folder ကိုအရင်ဖန်တီးပါ
+mkdir -p ../apps/<app_name>
 
-## 2. Managing Version Control (Git)
+# Container မှ Host သို့ code ကူးပါ
+docker cp docker-setup-backend-1:/home/frappe/frappe-bench/apps/<app_name>/. ../apps/<app_name>/
+```
 
-Each custom app should be its own Git repository.
+## 2. Git ဖြင့် Version Control လုပ်ခြင်း
 
-1. **Initialize Git in the App folder**:
-   ```bash
-   cd ../apps/mdea_custom
-   git init
-   git remote add origin https://github.com/HtetNyiAung/mdea_custom.git
-   ```
+Custom App တစ်ခုချင်းကို သီးခြား Git repository ထားရန် အကြံပြုသည်။
 
-2. **Commit and Push**:
-   ```bash
-   git add .
-   git commit -m "chore: initialize mdea_custom app structure"
-   git branch -M main
-   git push -f origin main
-   ```
+```bash
+cd ../apps/<app_name>
+git init
+git remote add origin https://github.com/<owner>/<repository>.git
+git add .
+git commit -m "chore: initialize custom app structure"
+git branch -M main
+git push -u origin main
+```
 
----
+`git push -f` သည် Remote history ကို overwrite လုပ်နိုင်သောကြောင့် ပုံမှန်
+initial push တွင် မသုံးပါနှင့်။ Private repository အတွက် credential ကို URL
+ထဲတွင် မထည့်ဘဲ Git credential manager, SSH key သို့မဟုတ် approved secret
+mechanism ကို သုံးပါ။
 
-## 3. Integrating the App into the Setup
+## 3. Setup ထဲသို့ App ထည့်ခြင်း
 
-### Step 1: Update `apps.json`
-Add your app to the `docker-setup/apps.json` file. Ensure the `url` is provided so the Docker build can find it:
+### Step 1 — `apps.json` ပြင်ခြင်း
+
+Docker build က repository ကို clone နိုင်ရန် `docker-setup/apps.json` ထဲသို့
+App ကို ထည့်ပါ။
+
 ```json
 {
-  "name": "mdea_custom",
-  "url": "https://github.com/HtetNyiAung/mdea_custom.git",
+  "name": "<app_name>",
+  "url": "https://github.com/<owner>/<repository>.git",
   "branch": "main"
 }
 ```
 
-### Step 2: Configure Volume Mounting
-Ensure the app is mounted in `docker-setup/pwd-with-apps.yml` for **Immediate Reflection** (Hot-Reloading):
+### Step 2 — Development Volume Mount
+
+Host code ပြောင်းလဲမှုကို Container ထဲတွင် ချက်ချင်းမြင်လိုပါက
+`docker-setup/pwd-with-apps.yml` ရှိ လိုအပ်သော Services များတွင် Volume mount
+ထည့်ပါ။ Production image အတွက် bind mount မသုံးဘဲ Deployment workflow အတိုင်း
+image ထဲသို့ build လုပ်ပါ။
+
 ```yaml
 services:
   backend:
     volumes:
-      - ../apps/mdea_custom:/home/frappe/frappe-bench/apps/mdea_custom
+      - ../apps/<app_name>:/home/frappe/frappe-bench/apps/<app_name>
 ```
-
----
 
 ## 4. Development Workflow
 
-### Hot Reloading
-Because we use **Volume Mounts**, your changes to Python/JS files on the host are instantly reflected inside the container. You don't need to rebuild the image during development.
+Volume mount သုံးထားပါက Host ရှိ Python/JS file ပြောင်းလဲမှုများကို Container
+တွင် ချက်ချင်းတွေ့နိုင်ပြီး Development တိုင်း image ပြန်ဆောက်ရန် မလိုပါ။
 
-### Running Migrations
-If you create a new DocType or change fields, run migrations:
+DocType အသစ်ဖန်တီးခြင်း သို့မဟုတ် field ပြင်ခြင်းကဲ့သို့ Database schema
+ပြောင်းလဲမှုရှိပါက—
+
 ```bash
 ./ops.sh migrate
 ```
 
----
+## 5. Setup နှင့် Deployment
 
-## 5. Setup and Deployment Scripts
+- ပထမဆုံး Site installation အတွက် `./setup.sh` ကို သုံးပါ။
+- Site ရှိပြီးနောက် Code/App update အတွက် `./deploy.sh check`,
+  `./deploy.sh plan`, `./deploy.sh apply` ကို အစဉ်လိုက်သုံးပါ။
+- Deployment workflow သည် image build၊ verified Backup၊ App sync/install၊
+  Migration၊ Cache clear နှင့် Verification ကို ထိန်းချုပ်လုပ်ဆောင်ပေးသည်။
 
-Use `./setup.sh` for the first site installation. After the site exists, use
-`./deploy.sh check`, `./deploy.sh plan`, and `./deploy.sh apply` to build the
-image, create a verified backup, synchronize the app, install it when needed,
-run migration, clear caches, and verify the site.
+အသေးစိတ်ကို [Script အသုံးပြုမှုလမ်းညွှန်](../guide/script-usage-guide-my.md)
+တွင် ဖတ်ပါ။
 
----
+## 6. ပြဿနာဖြေရှင်းခြင်း
 
-## 6. Troubleshooting
+- **`403 Not Permitted` after OAuth login** — OAuth login flow တွင် Server
+  Script ကိုမမှီခိုဘဲ Custom App ၏ `hooks.py` နှင့် server-side permission
+  logic ကို သုံးပါ။
+- **File permission error** — Ownership ကို မပြောင်းမီ affected path နှင့်
+  လက်ရှိ owner ကို `ls -la` ဖြင့်စစ်ပါ။ လိုအပ်မှသာ မိမိ App folder အတိအကျကို
+  target လုပ်ပါ။
 
-- **403 Not Permitted on Login**: Remember, Server Scripts don't work with OAuth login. Use the custom app's `hooks.py` for role assignment logic.
-- **Permission Errors**: If files are owned by root, run: `sudo chown -R $USER:$USER ../apps/mdea_custom`.
+```bash
+sudo chown -R "$USER":"$USER" ../apps/<app_name>
+```
+
+Broad path သို့မဟုတ် unresolved variable ကို `chown -R` နှင့် မသုံးပါနှင့်။

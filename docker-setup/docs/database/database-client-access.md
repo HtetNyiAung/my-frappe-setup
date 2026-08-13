@@ -1,32 +1,43 @@
-# Database Client Access Guide
+# Database Client Access အသုံးပြုနည်း
 
-This guide explains how to connect a database client such as MySQL Workbench to the MariaDB service used by this Frappe Docker setup.
+ဒီ guide က Frappe Docker setup ထဲက bundled Local MariaDB ကို MySQL Workbench
+သို့မဟုတ် အခြား Database Client ကနေ ချိတ်ဆက်အသုံးပြုနည်းကို ရှင်းပြထားပါတယ်။
 
-This page describes the bundled local MariaDB container. For a separate
-database server, see [External MariaDB](external-database.md).
+သီးခြား Database Server ကိုချိတ်လိုပါက
+[External MariaDB Guide](external-database.md) ကိုအသုံးပြုပါ။
 
-## Recommended Production Pattern
+## Production အတွက် အကြံပြုထားသည့်ပုံစံ
 
-For production, avoid exposing the database port to the public network.
-
-Recommended compose mapping:
+Production မှာ Database port ကို Public Network သို့ တိုက်ရိုက်မဖွင့်ပါနှင့်။
+Compose port mapping ကို အောက်ပါအတိုင်း Localhost မှာပဲ bind လုပ်ထားသင့်ပါတယ်။
 
 ```yaml
 ports:
   - "127.0.0.1:3307:3306"
 ```
 
-Meaning:
+ဒီ mapping ရဲ့အဓိပ္ပာယ်က:
 
 ```text
-Host 127.0.0.1:3307 -> Docker MariaDB container:3306
+Host 127.0.0.1:3307 -> Docker MariaDB Container:3306
 ```
 
-MariaDB uses `3306` inside the container. The host uses `3307` to avoid conflict with any MySQL/MariaDB already running on the host.
+MariaDB က Container အတွင်း `3306` ကိုသုံးပါတယ်။ Host မှာရှိပြီးသား
+MySQL/MariaDB နဲ့ Port Conflict မဖြစ်စေရန် Host Port ကို `3307` သုံးထားပါတယ်။
+
+## ချိတ်ဆက်နည်းရွေးချယ်ခြင်း
+
+| Database Client ရှိသည့်နေရာ | အကြံပြုနည်း |
+|---|---|
+| Docker run နေသော Laptop/Server တစ်လုံးတည်း | Standard TCP/IP မှ `127.0.0.1:3307` |
+| အခြား Administrator Laptop | Standard TCP/IP over SSH |
+| Trusted Internal LAN | Private IP ဖြင့် Direct Access နှင့် Firewall restriction |
+| Public Internet | Direct Access မလုပ်ရပါ; SSH Tunnel သုံးပါ |
 
 ## Same Machine Access
 
-Use this when MySQL Workbench is installed on the same server or same laptop that runs Docker.
+MySQL Workbench နဲ့ Docker က Server သို့မဟုတ် Laptop တစ်လုံးတည်းမှာရှိရင် ဒီနည်းကို
+သုံးပါ။
 
 MySQL Workbench values:
 
@@ -35,70 +46,75 @@ Connection Method: Standard TCP/IP
 Hostname: 127.0.0.1
 Port: 3307
 Username: root
-Password: value of MYSQL_ROOT_PASSWORD or MARIADB_ROOT_PASSWORD from .env
-Default Schema: leave blank
+Password: .env ထဲက MYSQL_ROOT_PASSWORD သို့မဟုတ် MARIADB_ROOT_PASSWORD
+Default Schema: အလွတ်ထားပါ
 ```
 
-This works because Workbench connects to the host port `3307`, and Docker forwards it to MariaDB port `3306` inside the container.
+MySQL Workbench က Host Port `3307` ကိုချိတ်ပြီး Docker က MariaDB Container ရဲ့
+Port `3306` သို့ forward လုပ်ပေးပါတယ်။
 
-## Remote Laptop Access With SSH Tunnel
+## SSH Tunnel ဖြင့် Remote Laptop မှချိတ်ဆက်ခြင်း
 
-Use this when MySQL Workbench is on another laptop, but the database port is bound to `127.0.0.1` on the server.
-
-Recommended because the database port stays private.
+MySQL Workbench က အခြား Laptop မှာရှိပြီး Database Port က Server ရဲ့
+`127.0.0.1` မှာပဲ bind လုပ်ထားရင် ဒီနည်းကိုသုံးပါ။ Database Port ကို Network
+ပေါ်မဖွင့်ဘဲ encrypted SSH connection ကနေဝင်နိုင်တာကြောင့် ဒီနည်းကို
+အကြံပြုပါတယ်။
 
 MySQL Workbench values:
 
 ```text
 Connection Method: Standard TCP/IP over SSH
 
-SSH Hostname: your-server-ip:22
-SSH Username: your-server-ssh-user
-SSH Password or SSH Key File: your SSH credential
+SSH Hostname: <SERVER_PRIVATE_IP>:22
+SSH Username: <SSH_USER>
+SSH Password or SSH Key File: Server SSH credential
 
 MySQL Hostname: 127.0.0.1
 MySQL Server Port: 3307
 Username: root
-Password: value of MYSQL_ROOT_PASSWORD or MARIADB_ROOT_PASSWORD from .env
-Default Schema: leave blank
+Password: .env ထဲက MYSQL_ROOT_PASSWORD သို့မဟုတ် MARIADB_ROOT_PASSWORD
+Default Schema: အလွတ်ထားပါ
 ```
 
 Connection flow:
 
 ```text
-Your laptop MySQL Workbench
-  -> SSH connection to server
-  -> server 127.0.0.1:3307
-  -> Docker MariaDB container:3306
+Administrator Laptop / MySQL Workbench
+  -> SSH Connection to App Server
+  -> App Server 127.0.0.1:3307
+  -> Docker MariaDB Container:3306
 ```
 
-## Where To Get SSH Password or SSH Key
+`MySQL Hostname` က SSH Server ကနေကြည့်သည့် Database address ဖြစ်ပါတယ်။ Local
+Compose MariaDB အတွက် `127.0.0.1` နဲ့ published Host Port `3307` ကိုသုံးရပါမယ်။
 
-The SSH credential is not a Frappe password and not a database password. It is the server login credential.
+## SSH Password သို့မဟုတ် SSH Key ဘယ်ကရမလဲ
 
-You get it from one of these places:
+SSH credential က Frappe Password မဟုတ်သလို Database Password လည်းမဟုတ်ပါ။
+Server Login အတွက်အသုံးပြုသည့် credential ဖြစ်ပါတယ်။ အောက်ပါနေရာတစ်ခုကနေ
+ရနိုင်ပါတယ်။
 
-- Server administrator
-- Cloud provider server setup page
-- Existing `.pem` or private key file used to login to the server
-- Your organization's infrastructure or DevOps team
-- The person who created the server
+- Server Administrator
+- Cloud Provider ရဲ့ Server Setup page
+- Server ကို SSH ဝင်ရာမှာသုံးထားသည့် `.pem` သို့မဟုတ် Private Key
+- Infrastructure/DevOps Team
+- Server ဖန်တီးထားသူ
 
-Examples:
+ဥပမာ:
 
 ```text
-SSH username: ubuntu
-SSH key file: ~/Downloads/server-key.pem
+SSH Username: ubuntu
+SSH Key File: /path/to/server-key.pem
 ```
 
-or:
+သို့မဟုတ်:
 
 ```text
-SSH username: deploy
-SSH password: server login password
+SSH Username: deploy
+SSH Password: Server Login Password
 ```
 
-Common SSH usernames:
+အသုံးများသည့် SSH Username များ:
 
 ```text
 ubuntu
@@ -108,107 +124,147 @@ deploy
 frappe
 ```
 
-The correct username depends on the server image and how the server was created.
+မှန်ကန်သည့် Username က Server Image နဲ့ Server ဖန်တီးထားပုံပေါ် မူတည်ပါတယ်။
+Private SSH Key ကို Git, Chat, Email သို့မဟုတ် Screenshot ထဲ မမျှဝေပါနှင့်။
 
-Do not share private SSH keys in chat, email, screenshots, or Git.
+## Terminal မှ SSH Tunnel ဖွင့်ခြင်း
 
-## Terminal SSH Tunnel Alternative
+MySQL Workbench ထဲမှာ SSH မပြင်ဘဲ Laptop Terminal ကနေ Tunnel ဖွင့်နိုင်ပါတယ်။
 
-Instead of configuring SSH inside MySQL Workbench, you can create the tunnel from your terminal.
-
-Run this from your laptop:
+Laptop မှာ run ပါ:
 
 ```bash
-ssh -L 3307:127.0.0.1:3307 your-server-ssh-user@your-server-ip
+ssh -L 3307:127.0.0.1:3307 <SSH_USER>@<SERVER_PRIVATE_IP>
 ```
 
-Keep that terminal open.
-
-Then connect in MySQL Workbench:
+ဒီ Terminal ကိုဖွင့်ထားပြီး MySQL Workbench မှာ အောက်ပါ values သုံးပါ:
 
 ```text
 Connection Method: Standard TCP/IP
 Hostname: 127.0.0.1
 Port: 3307
 Username: root
-Password: value of MYSQL_ROOT_PASSWORD or MARIADB_ROOT_PASSWORD from .env
+Password: .env ထဲက MYSQL_ROOT_PASSWORD သို့မဟုတ် MARIADB_ROOT_PASSWORD
 ```
+
+Laptop ရဲ့ Port `3307` ကို အခြား service သုံးနေပါက ပထမ `3307` ကို available
+port တစ်ခုနဲ့ပြောင်းနိုင်ပါတယ်။ ဥပမာ:
+
+```bash
+ssh -L 13307:127.0.0.1:3307 <SSH_USER>@<SERVER_PRIVATE_IP>
+```
+
+ဒီအခါ MySQL Workbench Port ကို `13307` သုံးရပါမယ်။
 
 ## Internal LAN Direct Access
 
-If you intentionally want other trusted office network laptops to connect without SSH tunnel, bind the database port to the server LAN IP.
+Trusted Office Network ထဲက Laptop တွေကို SSH Tunnel မသုံးဘဲ ချိတ်စေလိုမှသာ
+Database Port ကို Server Private IP မှာ bind လုပ်ပါ။
 
-Example:
+ဥပမာ:
 
 ```yaml
 ports:
-  - "192.168.1.50:3307:3306"
+  - "<SERVER_PRIVATE_IP>:3307:3306"
 ```
 
-Then MySQL Workbench on another office laptop uses:
+MySQL Workbench values:
 
 ```text
-Hostname: 192.168.1.50
+Hostname: <SERVER_PRIVATE_IP>
 Port: 3307
-Username: root
-Password: database password
+Username: <LIMITED_DATABASE_USER>
+Password: Database User Password
 ```
 
-This is more open than `127.0.0.1`, so use firewall rules to allow only trusted office IP addresses.
+ဒီနည်းက `127.0.0.1` binding ထက် exposure ပိုများပါတယ်။ Firewall မှာ approved
+Client IP တွေကိုပဲ Allow လုပ်ပြီး Daily Access အတွက် `root` အစား Limited User
+သို့မဟုတ် Read-only User သုံးပါ။
 
-## Less Recommended Broad Mapping
-
-This mapping is convenient but broader:
+## မအကြံပြုသည့် Broad Port Mapping
 
 ```yaml
 ports:
   - "3307:3306"
 ```
 
-It may bind to all host network interfaces, similar to:
+ဒီ mapping က Host Network Interfaces အားလုံးပေါ် bind ဖြစ်နိုင်ပြီး အောက်ပါ
+ပုံစံနဲ့တူပါတယ်။
 
 ```yaml
 ports:
   - "0.0.0.0:3307:3306"
 ```
 
-Use it only when you understand the network exposure and firewall rules are in place.
+Network exposure နဲ့ Firewall rules ကို အပြည့်အဝသိရှိပြီး approved requirement
+ရှိမှသာ သုံးပါ။ Public Internet အတွက် မသုံးပါနှင့်။
 
-## Security Recommendations
+## Limited Read-only User အသုံးပြုခြင်း
 
-- Prefer `127.0.0.1:3307:3306` plus SSH tunnel for production.
-- Do not expose MariaDB to the public internet.
-- Use strong database passwords.
-- Avoid using the root database user for daily reporting access.
-- Create a limited read-only database user if users only need reports.
-- Restrict SSH access to trusted administrators.
-- Do not commit `.env` or database credentials to Git.
+Reporting သို့မဟုတ် Data စစ်ဆေးရန်သာလိုပါက `root` သို့မဟုတ် Frappe Runtime
+User မပေးဘဲ သီးခြား Read-only User ဆောက်ပါ။ `<SITE_DB_NAME>` နဲ့ Host ကို
+Environment အလိုက်အစားထိုးပါ။
 
-## Troubleshooting
+```sql
+CREATE USER 'report_reader'@'<CLIENT_PRIVATE_IP>'
+  IDENTIFIED BY '<STRONG_READ_ONLY_PASSWORD>';
 
-Check whether the DB port is published:
+GRANT SELECT ON `<SITE_DB_NAME>`.*
+  TO 'report_reader'@'<CLIENT_PRIVATE_IP>';
+
+FLUSH PRIVILEGES;
+```
+
+ဒီ User က Data ဖတ်နိုင်ပေမယ့် Record ပြင်ခြင်းနဲ့ Schema ပြောင်းခြင်း မလုပ်နိုင်ပါ။
+လိုအပ်ချက်မရှိတော့ပါက Account ကိုဖျက်ပါ။
+
+## Security အကြံပြုချက်များ
+
+- Production မှာ `127.0.0.1:3307:3306` နဲ့ SSH Tunnel ကိုဦးစားပေးပါ။
+- MariaDB Port ကို Public Internet သို့ မဖွင့်ပါနှင့်။
+- Strong Database Password သုံးပါ။
+- Daily Reporting အတွက် Database `root` မသုံးပါနှင့်။
+- လိုအပ်သည့် Schema နဲ့ Permission သာရသည့် Limited User သုံးပါ။
+- SSH Access ကို approved Administrators တွေအတွက်သာထားပါ။
+- `.env`, Password နဲ့ Private SSH Key ကို Git ထဲ commit မလုပ်ပါနှင့်။
+- Customer Data ကို Screenshot သို့မဟုတ် Support Log ထဲမထည့်ပါနှင့်။
+
+## ပြဿနာဖြေရှင်းခြင်း (Troubleshooting)
+
+### Database Container နဲ့ Port Mapping စစ်ခြင်း
 
 ```bash
 docker compose ps db
 ```
 
-Expected for local-only access:
+Local-only access အတွက် အောက်ပါ mapping မြင်ရပါမယ်:
 
 ```text
 127.0.0.1:3307->3306/tcp
 ```
 
-Check the running database container:
+Database Logs ကြည့်ရန်:
 
 ```bash
-docker compose logs db
+docker compose logs db --tail 200
 ```
 
-If MySQL Workbench cannot connect:
+### MySQL Workbench ချိတ်မရခြင်း
 
-- Confirm Docker containers are running.
-- Confirm the port mapping is correct.
-- Confirm you are using port `3307`, not `3306`.
-- Confirm the database password from `.env`.
-- If using SSH tunnel, confirm SSH login works first.
-- If using LAN direct access, confirm firewall allows the client IP.
+- Docker Containers running ဖြစ်မဖြစ်စစ်ပါ။
+- Compose Port Mapping မှန်မမှန်စစ်ပါ။
+- Host မှာ `3307` သုံးပြီး Container အတွင်းမှာ `3306` သုံးတာ မရောပါနှင့်။
+- `.env` ထဲက Database Password မှန်မမှန်စစ်ပါ။
+- SSH Tunnel သုံးထားပါက SSH Login ကိုအရင်စမ်းပါ။
+- Direct LAN Access သုံးထားပါက Firewall မှာ Client IP Allow ဖြစ်မဖြစ်စစ်ပါ။
+
+### SSH Tunnel ရသော်လည်း Database Access Denied ဖြစ်ခြင်း
+
+SSH Connection အောင်တာက Database Authentication အောင်တာမဟုတ်ပါ။ MySQL
+Username, Password နဲ့ MariaDB Account ရဲ့ Host restriction ကို သီးခြားစစ်ပါ။
+
+### External Database Server ချိတ်လိုခြင်း
+
+External MariaDB ရဲ့ Port, User Host နဲ့ Firewall က Local Container နဲ့မတူပါ။
+[External MariaDB Guide](external-database.md) နဲ့
+[External Database First Setup Guide](external-database-ubuntu.md) ကိုလိုက်နာပါ။

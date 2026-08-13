@@ -1,1288 +1,558 @@
-# Hluttaw Digital Learning Platform - User and Administration Guide
+# Digital Learning Platform — Administrator နှင့် Learner အသုံးပြုနည်း
 
-Pilot and R&D Phase
+**Platform:** Frappe LMS
 
-Platform: Frappe LMS  
-Deployment Type: Standalone LMS, no ERPNext  
-Audience: Super Admin, Training Admin, MPs, Parliamentary Staff, Committee Members  
-Access Model: Internal/private learning portal
+**အသုံးပြုသူများ:** System Administrator, LMS Administrator, Instructor, Learner
 
-## Document Purpose
+**ရည်ရွယ်ချက်:** Internal/Private Digital Learning Portal ကို စီမံခြင်းနှင့် အသုံးပြုခြင်း
 
-This guide explains how to use and administer the Hluttaw Digital Learning Platform during the pilot and R&D phase. It is written for beginners and operational teams who need clear steps, safe configuration guidance, and practical workflows.
+ဒီ Guide တွင် ရှင်းလင်းချက်ကို Myanmar ဘာသာဖြင့်ရေးထားပြီး Product အတွင်း
+နှိပ်ရမည့် Menu, Button, Field, Role နှင့် Technical Term များကို English
+အတိုင်းထားသည်။ UI Label များသည် Installed LMS Version/Localization အလိုက်
+အနည်းငယ်ကွာနိုင်သည်။
 
-The platform is intended for internal parliamentary learning, including courses for MPs, parliamentary staff, committees, and training administrators.
+## ဒီ Guide ကို သုံးနည်း
 
-## Important Terms
+- **Part A** — Administrator/Instructor အတွက် Setup နှင့် Content Management
+- **Part B** — Learner အတွက် Enrollment မှ Certificate ရယူသည်အထိ
+- **Part C** — Security, Troubleshooting နှင့် Deployment Checklists
 
-| Term | Meaning |
+Screenshot ထည့်မည့်နေရာများကို `[Screenshot: ...]` ဖြင့် ဖော်ပြထားသည်။ Customer
+ထံမပေးမီ Production UI မှ Personal Data/Secret မပါသော Screenshot ဖြင့်
+အစားထိုးနိုင်သည်။
+
+## အရေးကြီး Technical Terms
+
+| Term | အဓိပ္ပာယ် |
 |---|---|
-| LMS | Learning Management System |
-| Course | A structured learning program made of lessons, files, videos, and quizzes |
-| Lesson | One learning unit inside a course |
-| Batch | A learning session or group of learners assigned to a course |
-| Student | A learner, such as an MP, staff member, or committee member |
-| Training Admin | User who creates and manages learning content |
-| Super Admin | User with full system administration rights |
-| Workspace | A Desk menu area used by administrators |
-| Desktop Icon | A clickable tile on the Frappe desktop screen |
+| Course | သင်ယူရမည့် အကြောင်းအရာအစု |
+| Chapter | Course အတွင်း အခန်းကြီး |
+| Lesson | Chapter အတွင်း သင်ခန်းစာတစ်ခု |
+| Program | Course များကို စုစည်းထားသော Learning Path |
+| Batch | သတ်မှတ်ကာလ/အဖွဲ့အလိုက် Learner များစုထားခြင်း |
+| Enrollment | Learner ကို Course/Batch တွင် စာရင်းသွင်းခြင်း |
+| Quiz | အွန်လိုင်းမေးခွန်းစစ်ဆေးမှု |
+| Assignment | တင်ပြရမည့် လုပ်ငန်းတာဝန် |
+| Progress | Course ပြီးမြောက်မှုအခြေအနေ |
+| Certificate | သတ်မှတ်ချက်ပြည့်မီပြီး Course ပြီးဆုံးကြောင်းအထောက်အထား |
+| Role | User ၏ လုပ်ဆောင်ခွင့်အဆင့် |
+| Permission | Data/Page/Action တစ်ခုကို အသုံးပြုခွင့် |
 
-## Table of Contents
+# Part A — Administrator Guide
 
-1. Initial LMS Setup
-2. Branding and Localization
-3. User and Role Management
-4. Creating Courses
-5. Creating Lessons
-6. Uploading PDFs and Videos
-7. Course Categories
-8. Batches and Learning Sessions
-9. Student Enrollment
-10. Assessments and Quizzes
-11. Certificates
-12. Notifications
-13. Progress Tracking
-14. Reports and Analytics
-15. Internal Resource Management
-16. Committee-Based Access
-17. Private and Internal Access
-18. Sidebar and Menu Customization
-19. Myanmar Language Support
-20. Microsoft Login and SSO Overview
-21. Backup Recommendations
-22. Best Practices
-23. Pilot Deployment Workflow
-24. User Guide
-25. Security and Permissions Guide
-26. Troubleshooting Guide
-27. Deployment Checklist
+## 1. ပထမဆုံး Admin Login နှင့် စစ်ဆေးချက်
 
----
+1. Digital Learning URL ကို Browser တွင်ဖွင့်ပါ။
+2. Named Administrator account ဖြင့် Login ဝင်ပါ။ Shared Administrator
+   account ကို နေ့စဉ်မသုံးပါနှင့်။
+3. Sidebar တွင် **Courses**, **Programs**, **Batches**, **Certifications**,
+   **Quizzes**, **Assignments** စသည့် Required Menu များပေါ်ကြောင်းစစ်ပါ။
+4. Platform name/logo, Language, Time Zone နှင့် Email Sender မှန်ကြောင်းစစ်ပါ။
+5. Normal Learner Test account တစ်ခုဖြင့် Admin-only Menu/Data မမြင်ကြောင်း
+   သီးခြားစမ်းပါ။
 
-# 1. Initial LMS Setup
+Internal App names ဖြစ်သော `frappe`, `lms`, `payments` ကို Rename/Delete
+မလုပ်ပါနှင့်။ User မြင်သော Branding Label ကို Custom App/Settings မှသာပြောင်းပါ။
 
-## Purpose
+## 2. Branding နှင့် Localization
 
-Initial setup prepares the LMS for parliamentary training use. It includes site configuration, basic branding, administrator accounts, learning categories, and access control.
+Branding ပြင်ရန် Frappe Desk တွင် **Website Settings**, **System Settings** နှင့်
+LMS Settings ကို သုံးပါ။
 
-## Recommended Pilot Setup
-
-| Setting | Recommendation |
+| ပြင်ရန် | နမူနာ |
 |---|---|
-| Site name | Use the official internal training domain |
-| Access type | Internal/private only |
-| Admin account | Use named admin accounts, not shared admin accounts |
-| Demo content | Keep only if useful for training; remove before production |
-| Public course access | Disabled unless approved |
-| User registration | Admin-controlled during pilot |
-| Language | English plus Myanmar content where needed |
+| Platform Name | Digital Learning |
+| Logo | Approved organization logo |
+| Primary Color | Approved brand color |
+| Browser Title | Digital Learning |
+| Email Sender Name | Digital Learning Support |
 
-## First Login
+Learner-facing စာသားကို Myanmar သုံးနိုင်သော်လည်း Myanmar ပြန်ဆိုလျှင်
+နားလည်ရခက်သော UI/Technical Term များကို English အတိုင်းထားပါ။ ဥပမာ
+`Global Search`, `Course Editor`, `Publish`, `Unpublish`, `Enrollment`,
+`Certificate`, `Quiz`, `Assignment`, `Progress`, `Role`, `Permission`။
 
-1. Open the LMS URL.
-2. Log in as Administrator or Super Admin.
-3. Confirm the platform title shows the institution name.
-4. Confirm LMS menu is visible.
-5. Confirm only required apps are installed: Frappe, Payments, LMS.
+Translation CSV တွင် English အတိုင်းထားလိုသော Label များကို Source/Target
+တူအောင်ထားနိုင်သည်။ CSV Source string သည် Case, Space, Punctuation အားလုံး
+UI Source နှင့် တိတိကျကျတူရမည်။
 
-[Screenshot: Login page with institutional branding]
+```csv
+Unpublish,Unpublish
+Publish,Publish
+Global Search,Global Search
+```
 
-[Screenshot: LMS home page after administrator login]
+Translation/Asset ပြောင်းပြီးနောက် Cache ရှင်း၍ Browser Hard Refresh လုပ်ပါ။
 
-## Initial Admin Checks
+```bash
+./ops.sh clear-cache
+```
 
-Navigation:
+```text
+Ctrl + Shift + R
+```
 
-`Desk > Search > Installed Applications`
+## 3. User နှင့် Role Management
 
-Check that the system is standalone LMS only. ERPNext should not be required for this setup.
+### User အသစ်ထည့်ခြင်း
 
-Navigation:
+1. Desk **Global Search** မှ **User** ကိုဖွင့်ပါ။
+2. **Add User** သို့မဟုတ် **New** နှိပ်ပါ။
+3. Full Name နှင့် အသုံးပြုနိုင်သော Email ထည့်ပါ။
+4. **Enabled** ဖွင့်ပါ။
+5. လိုအပ်သော Role ကိုသာထည့်ပြီး **Save** လုပ်ပါ။
+6. Approved channel မှ Login instruction ပို့ပါ။ Password ကို Documentation
+   သို့မဟုတ် Group Chat ထဲ မပို့ပါနှင့်။
 
-`Desk > User > Administrator`
-
-Check that the Administrator password has been changed from the default.
-
-## What Admins Should Avoid Changing
-
-Do not rename or delete these internal application names:
-
-| Internal Name | Reason |
+| User အမျိုးအစား | Role/Access အကြံပြုချက် |
 |---|---|
-| frappe | Core framework required by the platform |
-| lms | Main LMS application |
-| payments | Required dependency for LMS |
+| System Administrator | `System Manager` — Trusted technical admins only |
+| LMS Administrator | LMS management Role — Course/User operations only |
+| Instructor | Instructor/Course creation permissions |
+| Learner | Portal/Learner Role only |
 
-Visible labels can be changed. Internal app names should not be changed.
+Role အမည်သည် Version အလိုက်ကွာနိုင်သည်။ `System Manager` ကို Login/Permission
+error ပြင်ရန် Shortcut အဖြစ် မပေးပါနှင့်။ Menu ဖုံးထားခြင်းတစ်ခုတည်းမဟုတ်ဘဲ
+Server-side Permission ကို User account အမှန်ဖြင့်စမ်းပါ။
 
----
+### Learner ထံမှ Admin-only Menu ဖုံးခြင်း
 
-# 2. Branding and Localization
+- Learner တွင် Admin Role မရှိရပါ။
+- **Statistics** ကဲ့သို့ Admin-only Page/Menu ကို Role condition ဖြင့်သာပြပါ။
+- URL ကိုတိုက်ရိုက်ဝင်လျှင်လည်း Server က Access ပိတ်ကြောင်း စမ်းပါ။
+- Guest/User role နှစ်မျိုးလုံးဖြင့် Authorized/Unauthorized Test လုပ်ပါ။
 
-## Purpose
+## 4. Course အသစ်ဖန်တီးခြင်း
 
-Branding makes the LMS look like an official parliamentary learning portal. Localization helps users understand content in English and Myanmar.
+### Course List သို့သွားခြင်း
 
-## Branding Areas
+1. Digital Learning Portal သို့ Admin/Instructor account ဖြင့် Login ဝင်ပါ။
+2. Sidebar မှ **Courses** ကိုနှိပ်ပါ။
+3. ညာဘက်အပေါ်ရှိ **Create** ကိုနှိပ်ပြီး **Course** ကိုရွေးပါ။ Version အချို့တွင်
+   Button သည် **New Course** ဟုပေါ်နိုင်သည်။
 
-| Area | Example |
+```text
+Digital Learning → Courses → Create → Course
+```
+
+### **New Course** Form ဖြည့်ခြင်း
+
+| Field | ဖြည့်ရန် |
 |---|---|
-| Platform name | Hluttaw Digital Learning Platform |
-| Logo | Parliament or official training logo |
-| Primary color | Institutional color |
-| Browser title | Hluttaw Digital Learning Platform |
-| LMS sidebar title | Hluttaw Digital Learning Platform |
-| Desktop icon label | Hluttaw Digital Learning Platform |
+| **Title** | Course ခေါင်းစဉ်တိုတိုရှင်းရှင်း |
+| **Category** | သက်ဆိုင်ရာ Course Category |
+| **Instructors** | Course ကိုတာဝန်ယူမည့် Instructor |
+| **Course Thumbnail** | Approved Image |
+| **Short Introduction** | Course အကျဉ်းချုပ် |
+| **Course Description** | ရည်ရွယ်ချက်၊ သင်ယူရမည့်အချက်များ၊ Audience |
 
-## Change Website and App Name
+Required Fields ဖြည့်ပြီး **Create** နှိပ်ပါ။ Draft အနေဖြင့်ဖန်တီးပြီး Content,
+Permission နှင့် Learner View စစ်ပြီးမှ **Publish** လုပ်ပါ။
 
-Navigation:
+`[Screenshot: Courses page and Create button]`
 
-`Desk > Search > Website Settings`
+`[Screenshot: New Course form with required fields]`
 
-Recommended fields:
+## 5. Course Editor တွင် Chapter နှင့် Lesson ထည့်ခြင်း
 
-| Field | Recommended Value |
-|---|---|
-| App Name | Hluttaw Digital Learning Platform |
-| Brand HTML | Hluttaw Digital Learning Platform |
-| Title Prefix | Hluttaw Digital Learning Platform |
+Course ဖန်တီးပြီးနောက်—
 
-[Screenshot: Website Settings branding fields]
+```text
+Courses → Open Course → Course Editor
+```
 
-## Change System App Name
+### Chapter ထည့်ခြင်း
 
-Navigation:
+1. **Course Editor** Tab ကိုနှိပ်ပါ။
+2. **Create Chapter** သို့မဟုတ် **Add Chapter** ကိုနှိပ်ပါ။
+3. **Title** ဖြည့်ပါ။ SCORM Package သုံးရန် Approved content ရှိမှ
+   **SCORM Package** ကို Enable လုပ်ပါ။
+4. **Create** နှိပ်ပါ။
 
-`Desk > Search > System Settings`
+Chapter အမည်ကို Learner နားလည်လွယ်သောအစဉ်ဖြင့်ပေးပါ။
 
-Set the app name if the field is available.
+```text
+Chapter 1 — မိတ်ဆက်
+Chapter 2 — အဓိကအကြောင်းအရာ
+Chapter 3 — လက်တွေ့အသုံးချမှု
+Chapter 4 — Assessment
+```
 
-[Screenshot: System Settings app name]
+### Lesson ထည့်ခြင်း
 
-## Change LMS Desktop Tile Name
+1. သက်ဆိုင်ရာ Chapter ကို Expand လုပ်ပါ။
+2. **Add Lesson** ကိုနှိပ်ပါ။
+3. Lesson Title ဖြည့်ပြီး Content type ကိုရွေးပါ။
+4. Text, Video, PDF, Link သို့မဟုတ် Interactive content ထည့်ပါ။
+5. Learner အား Preview ခွင့်ပြုလိုမှ **Include in Preview** ဖွင့်ပါ။
+6. **Save** လုပ်ပြီး **Student View** ဖြင့်စစ်ပါ။
 
-The tile shown on the Frappe desktop may come from a Desktop Icon record.
+Lesson တစ်ခုတွင် ရည်ရွယ်ချက်တစ်ခုအဓိကထားပြီး အောက်ပါအစီအစဉ်သုံးနိုင်သည်။
 
-Navigation:
+1. Learning Objective
+2. Main Content
+3. Example/Reference
+4. Summary
+5. Quiz/Assignment သို့ ဆက်သွားရန် Instruction
 
-`Desk > Search > Desktop Icon`
+`[Screenshot: Course Editor with Chapters and Add Lesson]`
 
-Open:
+## 6. PDF, Video နှင့် Attachments
 
-`Frappe Learning`
+### PDF
 
-Change visible label to:
+1. Lesson ကို Edit လုပ်ပါ။
+2. Attachment/File upload control မှ PDF ရွေးပါ။
+3. File name နှင့် Learner-facing Link text ရှင်းလင်းစွာပေးပါ။
+4. Sensitive content ကို **Private** အဖြစ်ထားပါ။
+5. **Save** ပြီး Learner Role ဖြင့် Open/Download စမ်းပါ။
 
-`Hluttaw Digital Learning Platform`
+### Video
 
-Do not change the internal name unless you fully understand upgrade impact.
+1. Supported Video upload/URL/embed type ကိုရွေးပါ။
+2. Approved source URL သို့မဟုတ် File ထည့်ပါ။
+3. Caption/Description ထည့်ပါ။
+4. Mobile Browser နှင့် Low-bandwidth connection တွင် စမ်းပါ။
 
-[Screenshot: Desktop Icon label field]
+Private URL ကို Browser မှရသော URL ဟုသာ ယုံ၍ပေးမထားပါနှင့်။ Parent Lesson,
+Course Enrollment, Current User Permission နှင့် File privacy ကို Server-side
+Validate လုပ်ရမည်။
 
-## Localization Guidance
+## 7. Course Categories
 
-Use English for system administration and Myanmar for learner-facing content where required.
+Category သည် Course များကို ရှာဖွေရလွယ်အောင် ခွဲခြားပေးသည်။
 
-Recommended approach:
+1. LMS Admin area တွင် **Categories** ကိုဖွင့်ပါ။
+2. **New** နှိပ်ပါ။
+3. Category Name/Description ထည့်ပြီး **Save** လုပ်ပါ။
+4. Course Form ရှိ **Category** Field တွင်ရွေးပါ။
 
-| Content Type | Recommended Language |
-|---|---|
-| Admin configuration | English |
-| Course title | English, Myanmar, or bilingual |
-| Lesson text | Myanmar where needed |
-| Legal/parliamentary terms | Use approved official terminology |
-| Certificates | Use official language standard |
+Category များကို အလွန်အသေးစိတ်မခွဲဘဲ Organization ၏ Approved taxonomy ကို
+သုံးပါ။ Duplicate/တူညီသောအမည် မဖန်တီးပါနှင့်။
 
----
+## 8. Program နှင့် Batch
 
-# 3. User and Role Management
+- **Program** — Course များကို Learning Path တစ်ခုအဖြစ် စုသည်။
+- **Batch** — သတ်မှတ် Learner အဖွဲ့နှင့် Schedule ကို စီမံသည်။
 
-## Purpose
+### Program ဖန်တီးခြင်း
 
-User and role management controls who can access the platform, create courses, manage students, and view reports.
+1. Sidebar **Programs → Create** ကိုနှိပ်ပါ။
+2. Program Title/Description ဖြည့်ပါ။
+3. Courses များကို လိုအပ်သောအစဉ်ဖြင့်ထည့်ပါ။
+4. **Save** ပြီး Learner access စမ်းပါ။
 
-## Recommended User Groups
+### Batch ဖန်တီးခြင်း
 
-| User Group | Description |
-|---|---|
-| Super Admin | Full platform administrator |
-| Training Admin | Creates courses, lessons, quizzes, batches, enrollments |
-| MP | Learner role for Members of Parliament |
-| Parliamentary Staff | Learner role for internal staff |
-| Committee Member | Learner role for committee-specific courses |
+1. Sidebar **Batches → Create** ကိုနှိပ်ပါ။
+2. Batch Name, Course/Program, Start/End Date နှင့် Instructor ဖြည့်ပါ။
+3. Learners/Members ထည့်ပါ။
+4. Schedule/Capacity/Visibility settings စစ်ပြီး **Save** လုပ်ပါ။
 
-## Add a New User
+## 9. Enrollment
 
-Navigation:
+### Learner တစ်ယောက်ကို Course ထဲထည့်ခြင်း
 
-`Desk > Search > User > New`
+1. သက်ဆိုင်ရာ Course ကိုဖွင့်ပါ။
+2. **Enrollments** သို့မဟုတ် **Members** ကိုဖွင့်ပါ။
+3. **Add Member/Enroll Student** ကိုနှိပ်ပါ။
+4. User ကိုရွေးပြီး **Save/Enroll** လုပ်ပါ။
+5. Learner account ဖြင့် **My Courses** တွင်ပေါ်ကြောင်းစစ်ပါ။
 
-Steps:
+### Batch ဖြင့် Learners အစုလိုက်ထည့်ခြင်း
 
-1. Enter full name.
-2. Enter official email address.
-3. Enable the user.
-4. Assign roles based on responsibility.
-5. Save.
-6. Send login instructions through the approved internal communication channel.
+1. Batch ကိုဖွင့်ပါ။
+2. **Members** တွင် Users ထည့်ပါ။
+3. Batch ချိတ်ထားသော Course/Program မှန်ကြောင်းစစ်ပါ။
+4. Notification ပို့မည်ဆိုပါက Outgoing Email အလုပ်လုပ်ကြောင်းအရင်စမ်းပါ။
 
-[Screenshot: New User form]
+Duplicate Enrollment, Disabled User နှင့် Wrong Course/Batch ကို မသိမ်းမီ
+စစ်ပါ။ Enrollment ဖယ်ရှားခြင်းက Learner Progress/Certificate ပေါ် သက်ရောက်နိုင်၍
+အတည်ပြုချက်နှင့် Audit trail ထားပါ။
 
-## Recommended Role Assignment
+## 10. Quiz နှင့် Assessment
 
-| User Type | Recommended Roles |
-|---|---|
-| Super Admin | System Manager, LMS Manager or equivalent LMS admin role |
-| Training Admin | LMS Manager, Instructor, Course Creator where available |
-| MP | Learner/Student role |
-| Parliamentary Staff | Learner/Student role |
-| Committee Member | Learner/Student role plus committee group membership |
+1. Sidebar **Quizzes → Create** ကိုဖွင့်ပါ။
+2. Quiz Title, Instructions, Passing Score နှင့် Attempts သတ်မှတ်ပါ။
+3. Questions/Answers ထည့်ပြီး Correct Answer သတ်မှတ်ပါ။
+4. Quiz ကို သက်ဆိုင်ရာ Lesson/Course နှင့် ချိတ်ပါ။
+5. **Save** ပြီး Learner account ဖြင့် Attempt/Result စမ်းပါ။
 
-Role names may vary slightly depending on installed LMS version. Use the closest LMS-specific role available.
+မေးခွန်းအမျိုးအစားသည် Version အလိုက် Multiple Choice, Multiple Select,
+True/False စသည်ဖြင့်ကွာနိုင်သည်။ Ambiguous မေးခွန်းမရေးဘဲ Correct Answer,
+Passing Score, Retake policy နှင့် Feedback ကို Publish မလုပ်မီ Review လုပ်ပါ။
 
-## Security Warning
+## 11. Assignment
 
-Avoid giving System Manager access to normal training users. System Manager should be limited to trusted technical administrators.
+1. **Assignments → Create** ကိုဖွင့်ပါ။
+2. Title, Instructions, Due Date နှင့် Submission requirement ဖြည့်ပါ။
+3. Course/Lesson နှင့် ချိတ်ပါ။
+4. Learner submission ကို Instructor account ဖြင့် Review/Grade လုပ်ပါ။
+5. Learner က Result/Feedback မြင်ကြောင်းစစ်ပါ။
 
----
+Submission files တွင် Personal/Sensitive Data ပါနိုင်သောကြောင့် Private Access
+နှင့် Retention policy ကို သတ်မှတ်ပါ။
 
-# 4. Creating Courses
+## 12. Certificate Configuration
 
-## Purpose
+Certificate ထုတ်ပေးမည့် Course တွင် **Certification** သို့မဟုတ် Certificate
+setting ကို Enable လုပ်ပါ။ Version ပေါ်မူတည်၍ Certificate Template/Print Format,
+Completion Percentage, Passing Quiz Score စသည့် Conditions ရှိနိုင်သည်။
 
-Courses organize learning content into a structured program. A course can include lessons, files, videos, quizzes, assignments, and certificates.
+1. Course အတွက် Completion requirements သတ်မှတ်ပါ။
+2. Certificate Template, Title, Logo, Signatory, Date format စစ်ပါ။
+3. Test Learner ဖြင့် Lessons/Quiz အားလုံးပြီးအောင်လုပ်ပါ။
+4. Certificate Generate/Download အောင်မြင်ကြောင်းစစ်ပါ။
+5. Learner Name, Course Name, Completion Date နှင့် Certificate ID မှန်ကြောင်း
+   Review လုပ်ပါ။
 
-## Add a Course
+Certificate ကို Manual ထုတ်ပေးခြင်းမပြုမီ Course Completion နှင့် Assessment
+Result ကို အတည်ပြုပါ။ Revoke/Reissue process ကိုလည်း Admin team သတ်မှတ်ထားပါ။
 
-Navigation:
+## 13. Notifications နှင့် Email
 
-`LMS > Courses > New Course`
+Notification မဖွင့်မီ Outgoing Email ကို **Send Test Email** ဖြင့်စမ်းပါ။
 
-Steps:
+အသုံးများသော Notifications—
 
-1. Click Courses.
-2. Click New Course.
-3. Enter the course title.
-4. Enter a short introduction.
-5. Select a category.
-6. Add a cover image if available.
-7. Add course description.
-8. Save as draft.
-9. Add lessons and quizzes.
-10. Review the course.
-11. Publish only after approval.
+- Enrollment Confirmation
+- Course/Batch Start Reminder
+- Assignment Due Reminder
+- Course Completion
+- Certificate Available
 
-[Screenshot: New Course button]
+User Email မှန်ကြောင်း၊ Duplicate Notification မပို့ကြောင်းနှင့် Email content
+ထဲ Sensitive Data မပါကြောင်းစစ်ပါ။
 
-[Screenshot: Course creation form]
+## 14. Progress Tracking နှင့် Statistics
 
-## Recommended Course Fields
+Admin/Instructor သည် Course/Batch ရှိ **Progress**, **Enrollments** သို့မဟုတ်
+**Statistics** မှ—
 
-| Field | Recommended Use |
-|---|---|
-| Title | Clear training title |
-| Short Introduction | One or two sentence summary |
-| Description | Full course purpose and target audience |
-| Category | Parliamentary function or subject area |
-| Published | Enable only after review |
-| Paid Course | Usually disabled for internal training |
+- Enrollment count
+- Lesson completion
+- Quiz attempts/scores
+- Course completion
+- Certificate status
 
-## Parliamentary Course Examples
+တို့ကို စစ်နိုင်သည်။ Statistics သည် Admin/Authorized Staff အတွက်သာဖြစ်ပါက
+Learner Sidebar တွင် ဖုံးထားပြီး URL တိုက်ရိုက်ဝင်သည့်အခါ Permission ပိတ်ကြောင်း
+စမ်းပါ။ Aggregate counts သည် Permission ဖြင့်ခွင့်ပြုထားသော Data မှသာ တွက်ရမည်။
 
-| Course Title | Audience |
-|---|---|
-| Introduction to Parliamentary Procedure | MPs, Staff |
-| Committee Reporting and Documentation | Committee Members |
-| Ethics and Code of Conduct | MPs, Staff |
-| Legislative Research Basics | Staff, Committee Members |
-| Digital Tools for Parliamentary Work | MPs, Staff |
+## 15. Reports နှင့် Data Protection
 
-## What to Avoid
+Report/Export ကို လိုအပ်သော Columns/Rows သာထုတ်ပါ။ User Email, Quiz Result,
+Progress နှင့် Certificate Data ကို Personal Data အဖြစ် ကာကွယ်ပါ။ Export file
+ကို Approved Storage တွင်သာသိမ်းပြီး Retention ပြည့်လျှင် ဖျက်ပါ။
 
-Do not publish incomplete courses.  
-Do not use unclear course titles.  
-Do not upload confidential documents to public courses.  
-Do not create duplicate courses without a naming standard.
+Report numbers ကို Decision အတွက်သုံးမည်ဆိုပါက Filter, Date Range, Timezone,
+Course/Batch scope နှင့် Last Updated time ကို အတည်ပြုပါ။
 
----
+## 16. Guest Access နှင့် Private Portal
 
-# 5. Creating Lessons
+Internal Portal အတွက် **Allow Guest Access** ကို Default Off ထားရန် အကြံပြုသည်။
 
-## Purpose
+```text
+LMS Settings → Settings → System Configurations → Allow Guest Access = Off
+```
 
-Lessons are the learning units inside a course. A good lesson should be short, focused, and easy to complete.
+Setting ပြောင်းပြီး Guest Browser/Incognito Window ဖြင့် Course/Batch list နှင့်
+Private files မမြင်ကြောင်းစစ်ပါ။ UI toggle ပိတ်ရုံမဟုတ်ဘဲ Server-side Permission
+နှင့် File access ကိုပါ စမ်းရမည်။ Public Course လိုအပ်ပါက Approved Content ကိုသာ
+သီးခြား Publish လုပ်ပါ။
 
-## Add a Lesson
+## 17. Sidebar နှင့် Menu Customization
 
-Navigation:
+- Learner အတွက် လိုအပ်သော Menu သာပြပါ။
+- Admin-only **Statistics**, Settings/User Management ကို Role-aware condition
+  ဖြင့်ဖုံးပါ။
+- Visible Label ပြောင်းရာတွင် Translation/Custom App သုံးပြီး Internal Route,
+  DocType name, Fieldname မပြောင်းပါနှင့်။
+- Core Frappe/LMS source ကိုတိုက်ရိုက်မပြင်ပါနှင့်။ Upgrade-safe Custom App
+  implementation ကိုသုံးပါ။
 
-`LMS > Courses > Open Course > Add Chapter > Add Lesson`
+# Part B — Learner Guide
 
-Steps:
+## 18. Login ဝင်ခြင်း
 
-1. Open the course.
-2. Add a chapter if needed.
-3. Click Add Lesson.
-4. Enter lesson title.
-5. Add lesson content.
-6. Attach files or videos where needed.
-7. Save.
-8. Preview as learner.
+1. Digital Learning URL ကို Browser တွင်ဖွင့်ပါ။
+2. Email/Username နှင့် Password ထည့်ပါ၊ သို့မဟုတ် Organization ပေးထားသော SSO
+   Button ကိုနှိပ်ပါ။
+3. **Login** နှိပ်ပါ။
+4. Password မေ့ပါက **Forgot Password** သုံးပါ။ Reset Email မရပါက Spam folder
+   စစ်ပြီး Support ကိုဆက်သွယ်ပါ။ Password မျှဝေခြင်းမလုပ်ပါနှင့်။
 
-[Screenshot: Add Chapter button]
+## 19. Course ရှာခြင်း
 
-[Screenshot: Add Lesson editor]
+- Sidebar **Courses** မှ ရရှိနိုင်သော Courses ကိုကြည့်ပါ။
+- **Search** ဖြင့် Course Title/Keyword ရှာပါ။
+- **Category** သို့မဟုတ် တခြား Filters ဖြင့် စစ်ပါ။
+- Enrollment ပြီး Course များကို **My Courses** သို့မဟုတ် Home dashboard မှ
+  ဖွင့်ပါ။
 
-## Recommended Lesson Structure
+Course မမြင်ပါက Login account မှန်ခြင်း၊ Enrollment/Batch Date နှင့် Course
+Published status ကို Admin ထံစစ်ခိုင်းပါ။
 
-| Section | Description |
-|---|---|
-| Objective | What the learner will understand |
-| Main content | Reading, video, or document |
-| Key points | Short summary |
-| Activity | Optional task or discussion |
-| Quiz | Optional assessment |
+## 20. Course ကို Enrollment လုပ်ခြင်း
 
-## Lesson Length Recommendation
+Self-enrollment ခွင့်ပြုထားသော Course—
 
-For MPs and parliamentary staff, keep lessons short:
+1. Course Card/Title ကိုနှိပ်ပါ။
+2. Description, Instructor, Chapters နှင့် Requirements ကိုဖတ်ပါ။
+3. **Enroll**, **Start Learning** သို့မဟုတ် Version တွင်ပေါ်သော Equivalent
+   Button ကိုနှိပ်ပါ။
+4. Confirmation ပြီး **Start/Continue** ကိုနှိပ်ပါ။
 
-| Content Type | Recommended Length |
-|---|---|
-| Text lesson | 5-10 minutes |
-| Video lesson | 3-8 minutes |
-| PDF reading | 3-10 pages for normal lessons |
-| Quiz | 5-10 questions |
+Admin-controlled Course တွင် Enrollment Button မပေါ်နိုင်ပါ။ Admin က Course
+သို့မဟုတ် Batch တွင်ထည့်ပေးပြီးမှ **My Courses** တွင်ပေါ်မည်။
 
----
+## 21. Lesson သင်ယူခြင်း
 
-# 6. Uploading PDFs and Videos
+1. **My Courses → Course** ကိုဖွင့်ပါ။
+2. Chapter ကိုရွေး၍ ပထမ Lesson ကိုဖွင့်ပါ။
+3. Text ဖတ်ခြင်း၊ Video ကြည့်ခြင်း၊ PDF/Attachment ဖွင့်ခြင်းတို့ကို ပြီးစီးပါ။
+4. **Mark Complete**, **Next** သို့မဟုတ် System ၏ Auto-completion ကိုသုံးပါ။
+5. Sidebar Progress ပြောင်းကြောင်းစစ်ပါ။
 
-## Purpose
+Video/PDF မဖွင့်ပါက Browser Refresh လုပ်ပြီး Network စစ်ပါ။ Private File URL ကို
+အခြားသူထံ မမျှဝေပါနှင့်။
 
-PDFs and videos allow administrators to share training material, procedural guides, policy references, and recorded sessions.
+## 22. Quiz ဖြေခြင်း
 
-## Upload PDF Material
+1. Course/Lesson ရှိ Quiz ကိုဖွင့်ပါ။
+2. Instructions, Time Limit, Passing Score နှင့် Attempts ကိုဖတ်ပါ။
+3. Answers ရွေးပြီး မတင်မီ Review လုပ်ပါ။
+4. **Submit** နှိပ်ပြီး Result/Feedback ကိုကြည့်ပါ။
+5. မအောင်မြင်ပါက Retake ခွင့်ရှိသရွေ့ ပြန်လေ့လာပြီး ထပ်ဖြေပါ။
 
-Navigation:
+Quiz window ကို Submit မလုပ်မီ ပိတ်ခြင်း၊ Browser Back/Refresh လုပ်ခြင်းကို
+ရှောင်ပါ။ Technical error ဖြစ်ပါက Screenshot တွင် Personal Data မပါအောင်
+ဖုံးကွယ်ပြီး Course/Quiz name နှင့် ဖြစ်ပွားချိန်ကို Support ထံပို့ပါ။
 
-`Course > Lesson > Attach File`
+## 23. Assignment တင်ခြင်း
 
-Steps:
+1. Assignment ကိုဖွင့်ပြီး Instructions/Due Date ကိုဖတ်ပါ။
+2. Allowed file type/size နှင့် Filename rule ကိုလိုက်နာပါ။
+3. Answer/File ကို Upload လုပ်၍ **Submit** နှိပ်ပါ။
+4. Submission status မှန်ကြောင်းစစ်ပါ။
+5. Instructor Feedback/Grade ရလာပါက ပြန်ကြည့်ပါ။
 
-1. Open the lesson.
-2. Choose file attachment.
-3. Upload the PDF.
-4. Add a clear file title.
-5. Save.
-6. Test download or view access.
+## 24. Progress ကြည့်ခြင်း
 
-[Screenshot: PDF upload field]
+Course page သို့မဟုတ် **My Courses** တွင် Completion Percentage ကိုကြည့်ပါ။
+Progress မတိုးပါက—
 
-## Upload Video Material
+- Required Lesson အားလုံး Complete ဖြစ်/မဖြစ်
+- Video/Content Completion condition
+- Required Quiz/Assignment Submit/Pass ဖြစ်/မဖြစ်
+- Browser/Network error ရှိ/မရှိ
 
-Possible options:
+စစ်ပါ။ ပြဿနာဆက်ရှိပါက Course Title, Lesson Title နှင့် ဖြစ်ပွားချိန်ကို Admin
+ထံပို့ပါ။
 
-| Option | Use Case |
-|---|---|
-| Direct video upload | Small internal videos |
-| Embedded video link | Internal video server or approved platform |
-| External link | Only if policy allows |
+## 25. Certificate ရယူခြင်း
 
-Steps:
+1. Required Lessons အားလုံး Complete လုပ်ပါ။
+2. Required Quiz/Assignment နှင့် Passing Score ပြည့်ပါစေ။
+3. Course Progress `100%` သို့မဟုတ် သတ်မှတ် Completion condition ပြည့်ကြောင်း
+   စစ်ပါ။
+4. Course page ရှိ **Certificate**, **Get Certificate** သို့မဟုတ်
+   **Download Certificate** ကိုနှိပ်ပါ။
+5. PDF ဖွင့်ပြီး Name, Course, Date နှင့် Certificate ID မှန်ကြောင်းစစ်ပါ။
+6. Approved Device/Storage တွင်သိမ်းပါ။
 
-1. Open the lesson.
-2. Add video content or embed link.
-3. Confirm playback works.
-4. Test as a learner.
+Button မပေါ်ပါက Missing Lesson/Quiz, Certificate-enabled Course ဖြစ်/မဖြစ်နှင့်
+Enrollment status ကို Admin ထံစစ်ခိုင်းပါ။ Certificate ကို ကိုယ်တိုင်ပြင်ဆင်ခြင်း
+သို့မဟုတ် တခြားသူ၏ Certificate သုံးခြင်းမပြုပါနှင့်။
 
-[Screenshot: Video lesson editor]
+# Part C — Operations, Security နှင့် Support
 
-## Security Recommendation
+## 26. Backup နှင့် Maintenance
 
-Do not upload restricted parliamentary documents into courses unless access is properly limited.
+Administrator သည် အနည်းဆုံး Database, Public files, Private files, Site
+Configuration, `encryption_key` နှင့် S3/MinIO objects ကို Backup လုပ်ရမည်။
 
----
+- Daily Automated Backup
+- Update မတိုင်မီ Manual Verified Backup
+- Server ပြင်ပ Offsite Copy
+- Periodic Non-production Restore Test
 
-# 7. Course Categories
+အသေးစိတ်ကို [Backup Automation လမ်းညွှန်](../operations/backup-automation-guide.md)
+နှင့် [Restore လမ်းညွှန်](../operations/restore.md) တွင်ဖတ်ပါ။
 
-## Purpose
+## 27. Troubleshooting
 
-Categories help learners find relevant courses.
+### Login မဝင်နိုင်ခြင်း
 
-## Recommended Categories
+- Email/Username, Password နှင့် User **Enabled** status စစ်ပါ။
+- SSO သုံးပါက IdP status, Redirect URL နှင့် User assignment စစ်ပါ။
+- **Forgot Password** စမ်းပြီး Email Queue/Spam စစ်ပါ။
 
-| Category | Example Courses |
-|---|---|
-| Parliamentary Procedure | Rules, motions, sessions |
-| Committee Work | Reports, hearings, evidence review |
-| Legislative Research | Research methods, legal references |
-| Ethics and Compliance | Code of conduct, disclosure |
-| Digital Skills | LMS use, office tools, cybersecurity |
-| Orientation | New MP and staff onboarding |
+### Course မမြင်ခြင်း
 
-## Create a Category
+- Course **Published** ဖြစ်ကြောင်းစစ်ပါ။
+- Enrollment/Batch Membership နှင့် Start/End Date စစ်ပါ။
+- Learner Role/Permission ကို Admin account မဟုတ်သော Test User ဖြင့်စမ်းပါ။
 
-Navigation:
+### Translation/Branding အဟောင်းပေါ်ခြင်း
 
-`LMS > Course Category > New`
+```bash
+./ops.sh clear-cache
+```
 
-Steps:
+ပြီးလျှင် `Ctrl + Shift + R` Hard Refresh လုပ်ပါ။ Translation Source string
+Case/Punctuation တိကျမှုနှင့် Custom App install/migrate status စစ်ပါ။
 
-1. Enter category name.
-2. Add description.
-3. Save.
-4. Assign courses to the category.
+### PDF/Video မပေါ်ခြင်း
 
-[Screenshot: Course Category form]
+- File record, Privacy, Parent Course/Lesson Permission စစ်ပါ။
+- S3/MinIO Enable ဖြစ်ပါက Endpoint/Bucket/Object နှင့် App Server connectivity
+  စစ်ပါ။
+- Upload size limit နှင့် Browser Network error စစ်ပါ။
 
----
+### Quiz Result/Progress မပြောင်းခြင်း
 
-# 8. Batches and Learning Sessions
+- Submission status, Required Lesson နှင့် Passing Score စစ်ပါ။
+- Worker/Scheduler status နှင့် Logs စစ်ပါ။
 
-## Purpose
+```bash
+./ops.sh status
+./ops.sh logs backend
+./ops.sh logs queue-short
+./ops.sh logs scheduler
+```
 
-Batches group learners into a training session. This is useful for pilot groups, committees, departments, or training periods.
+## Production Handover Checklist
 
-## Batch Examples
+### Administrator
 
-| Batch Name | Audience |
-|---|---|
-| Pilot Batch - MPs Group 1 | Selected MPs |
-| Committee Training - Public Accounts | Committee members |
-| Staff Orientation - May 2026 | New staff |
-| Digital Learning Pilot - Secretariat | Parliamentary staff |
+- [ ] Platform Branding, Language, Time Zone နှင့် Email မှန်သည်။
+- [ ] Guest Access Off ဖြစ်ပြီး Public Content ကိုသာ Intentional Publish လုပ်ထားသည်။
+- [ ] Admin/Instructor/Learner Roles နှင့် Server-side Permissions စမ်းထားသည်။
+- [ ] Course → Chapter → Lesson → Quiz/Assignment → Certificate workflow စမ်းထားသည်။
+- [ ] Learner Sidebar တွင် Admin-only Statistics/Settings မပေါ်ပါ။
+- [ ] Private Files နှင့် S3/Local Storage access စမ်းထားသည်။
+- [ ] Backup, Offsite Copy နှင့် Restore Test အောင်မြင်သည်။
 
-## Create a Batch
+### Learner
 
-Navigation:
+- [ ] Login/Password Reset အလုပ်လုပ်သည်။
+- [ ] Search/Filter, Enrollment နှင့် **My Courses** အလုပ်လုပ်သည်။
+- [ ] Lesson, Video, PDF နှင့် Quiz/Assignment အလုပ်လုပ်သည်။
+- [ ] Progress မှန်ပြီး Certificate Download ရသည်။
+- [ ] Mobile Browser နှင့် Supported Desktop Browser စမ်းထားသည်။
 
-`LMS > Batches > New Batch`
+### Customer Handover
 
-Steps:
+- [ ] Screenshots တွင် Test Personal Data/Secrets မပါပါ။
+- [ ] URL, Support Contact နှင့် Escalation Process အမှန်ထည့်ထားသည်။
+- [ ] Named Administrator နှင့် Emergency Admin accounts သီးခြားရှိသည်။
+- [ ] Known Issues, Maintenance Window နှင့် Backup Responsibility မှတ်တမ်းရှိသည်။
+- [ ] Guide ကို လက်ရှိ Production Version/UI နှင့် နောက်ဆုံးပြန်စစ်ထားသည်။
 
-1. Enter batch name.
-2. Select course or program.
-3. Set start date and end date.
-4. Add instructors if required.
-5. Add learners.
-6. Save.
-7. Notify participants.
+## နောက်ဆုံးမှတ်ချက်
 
-[Screenshot: New Batch form]
-
-## Recommended Batch Settings
-
-| Setting | Recommendation |
-|---|---|
-| Batch name | Include audience and period |
-| Start/end dates | Use realistic completion schedule |
-| Instructors | Assign accountable training owner |
-| Enrollment | Use official user list |
-
----
-
-# 9. Student Enrollment
-
-## Purpose
-
-Enrollment gives learners access to a course or batch.
-
-## Enroll a User in a Course
-
-Navigation:
-
-`LMS > Course > Open Course > Enroll Students`
-
-Steps:
-
-1. Open the course.
-2. Click enrollment option.
-3. Search user by name or email.
-4. Add user.
-5. Save.
-6. Confirm user can see the course.
-
-[Screenshot: Enroll Students dialog]
-
-## Enroll a Group Through Batch
-
-Navigation:
-
-`LMS > Batches > Open Batch > Add Students`
-
-Steps:
-
-1. Open the batch.
-2. Add multiple users.
-3. Save.
-4. Confirm learner list.
-
-[Screenshot: Batch enrollment list]
-
-## Enrollment Recommendations
-
-| Scenario | Recommended Method |
-|---|---|
-| One learner | Direct course enrollment |
-| Committee training | Batch enrollment |
-| Staff orientation | Batch enrollment |
-| Pilot group | Batch enrollment |
-
----
-
-# 10. Assessments and Quizzes
-
-## Purpose
-
-Quizzes check learner understanding and can support course completion requirements.
-
-## Create a Quiz
-
-Navigation:
-
-`Course > Chapter or Lesson > Add Quiz`
-
-Steps:
-
-1. Open the course.
-2. Choose the chapter or lesson.
-3. Click Add Quiz.
-4. Enter quiz title.
-5. Add questions.
-6. Select correct answers.
-7. Set passing score if available.
-8. Save.
-9. Preview and test.
-
-[Screenshot: Quiz creation page]
-
-## Question Types
-
-Common question types may include:
-
-| Type | Use Case |
-|---|---|
-| Multiple Choice | Best for quick assessment |
-| True/False | Good for policy checks |
-| Short Answer | Useful for reflection |
-
-## Parliamentary Quiz Examples
-
-| Topic | Example Question |
-|---|---|
-| Procedure | What is the purpose of a committee hearing? |
-| Ethics | Which action should be reported as a conflict of interest? |
-| Digital Skills | Which password practice is safest? |
-
-## Quiz Best Practices
-
-Keep questions clear.  
-Avoid trick questions.  
-Use official parliamentary terminology.  
-Review answers before publishing.
-
----
-
-# 11. Certificates
-
-## Purpose
-
-Certificates provide proof of completion for internal training.
-
-## How Certificates Work
-
-Certificates are usually issued after a learner completes required course activities. Configuration may depend on LMS version and course settings.
-
-## Recommended Certificate Usage
-
-| Training Type | Certificate Recommendation |
-|---|---|
-| Orientation | Certificate recommended |
-| Compliance training | Certificate recommended |
-| Optional resource course | Certificate optional |
-| Committee briefing | Certificate optional |
-
-## Certificate Admin Steps
-
-Navigation:
-
-`LMS > Certificates` or `Course > Certificate Settings`
-
-Steps:
-
-1. Confirm course completion rules.
-2. Configure certificate template if available.
-3. Test with one pilot learner.
-4. Confirm name and course title appear correctly.
-5. Approve for use.
-
-[Screenshot: Certificate settings]
-
-## Warning
-
-Do not issue certificates for incomplete courses or unapproved training programs.
-
----
-
-# 12. Notifications
-
-## Purpose
-
-Notifications inform learners about enrollment, course updates, assignments, sessions, and completion reminders.
-
-## Notification Examples
-
-| Notification | Audience |
-|---|---|
-| Course enrollment | Learners |
-| Batch start reminder | Learners and instructor |
-| Quiz reminder | Learners |
-| Certificate issued | Learner |
-| Course update | Enrolled learners |
-
-## Manage Notifications
-
-Navigation:
-
-`Desk > Search > Notification`
-
-Steps:
-
-1. Open existing notification.
-2. Review trigger condition.
-3. Review message text.
-4. Confirm recipients.
-5. Save.
-6. Test with pilot account.
-
-[Screenshot: Notification form]
-
-## Recommendation
-
-For pilot phase, keep notifications simple. Too many messages can confuse users.
-
----
-
-# 13. Progress Tracking
-
-## Purpose
-
-Progress tracking helps training administrators monitor course completion and learner engagement.
-
-## Track Learner Progress
-
-Navigation:
-
-`LMS > Statistics` or course progress section
-
-Steps:
-
-1. Open LMS dashboard.
-2. Review course completion statistics.
-3. Open course-specific progress.
-4. Filter by batch or learner.
-5. Export if needed.
-
-[Screenshot: LMS statistics page]
-
-## What to Monitor
-
-| Metric | Meaning |
-|---|---|
-| Course completion | Learners who finished course |
-| Quiz score | Assessment performance |
-| Lesson progress | Learning activity completion |
-| Batch progress | Group training status |
-| Inactive learners | Users who have not started |
-
----
-
-# 14. Reports and Analytics
-
-## Purpose
-
-Reports help leadership and training teams understand training adoption and completion.
-
-## Recommended Pilot Reports
-
-| Report | Purpose |
-|---|---|
-| Enrolled users by course | Track participation |
-| Course completion summary | Track progress |
-| Quiz result report | Assess understanding |
-| Batch progress report | Monitor group training |
-| Inactive learner list | Follow up with users |
-
-## How to Use Reports
-
-Navigation:
-
-`Desk > Reports` or `LMS > Statistics`
-
-Steps:
-
-1. Open report.
-2. Apply date or course filter.
-3. Review records.
-4. Export if allowed.
-5. Share only with authorized users.
-
-[Screenshot: Course progress report]
-
-## Data Protection Warning
-
-Learner progress and assessment scores should be treated as internal data.
-
----
-
-# 15. Internal Resource Management
-
-## Purpose
-
-Internal resources include PDFs, policy documents, videos, guides, and reference materials used for parliamentary learning.
-
-## Resource Types
-
-| Resource | Example |
-|---|---|
-| PDF | Rules of procedure guide |
-| Video | Recorded training session |
-| Link | Internal intranet resource |
-| Presentation | Training slides |
-| Template | Committee report template |
-
-## Management Rules
-
-1. Use clear names.
-2. Add version numbers when needed.
-3. Avoid duplicate uploads.
-4. Restrict confidential materials.
-5. Review resources before publication.
-
-## Recommended Naming Standard
-
-`Subject - Audience - Version - Date`
-
-Example:
-
-`Committee Reporting Guide - Staff - v1 - 2026-05`
-
----
-
-# 16. Committee-Based Access
-
-## Purpose
-
-Committee-based access limits learning content to relevant committee members or staff.
-
-## Recommended Access Model
-
-| Committee Content | Recommended Access |
-|---|---|
-| Public orientation | All internal users |
-| Committee-specific training | Committee members only |
-| Sensitive documents | Restricted group only |
-| Staff operational training | Staff roles only |
-
-## Implementation Options
-
-Depending on LMS version and configuration, access can be handled through:
-
-1. Batches for committee groups.
-2. Course enrollment for selected users.
-3. User roles for broader permissions.
-4. Private course settings if available.
-
-## Example Workflow
-
-1. Create course: Public Accounts Committee Training.
-2. Create batch: PAC Members - 2026.
-3. Add only committee members.
-4. Enroll batch in the course.
-5. Confirm non-members cannot access the course.
-
-[Screenshot: Committee batch enrollment]
-
----
-
-# 17. Private and Internal Access
-
-## Purpose
-
-The platform is intended for internal parliamentary use. Public access should be limited.
-
-## Recommended Settings
-
-| Setting | Recommendation |
-|---|---|
-| Self registration | Disabled unless approved |
-| Guest access | Disabled for internal courses |
-| Public courses | Avoid for internal materials |
-| User creation | Admin-controlled |
-| External links | Approved sources only |
-
-## Access Checklist
-
-1. Confirm only approved users can log in.
-2. Confirm private course access.
-3. Test with learner account.
-4. Test with unauthorized account.
-5. Review guest access settings.
-
-[Screenshot: Course access settings]
-
----
-
-# 18. Sidebar and Menu Customization
-
-## Purpose
-
-Menu customization makes the LMS easier for MPs and staff to use.
-
-## Safe Customization
-
-You can safely change visible labels such as:
-
-| Original | Example Replacement |
-|---|---|
-| Frappe Learning | Hluttaw Digital Learning Platform |
-| Learning | Digital Learning |
-| Getting started | Training Start Guide |
-
-## Avoid Changing
-
-Do not change internal DocType names, app names, or source folder names.
-
-Avoid changing:
-
-| Internal Item | Reason |
-|---|---|
-| frappe | Core framework |
-| lms | Main LMS app |
-| payments | Required dependency |
-| DocType names | May break updates |
-| Source files directly | May be overwritten during upgrade |
-
-## Recommended Upgrade-Safe Method
-
-1. Change database labels through setup configuration or custom fixtures.
-2. Use Website Settings and System Settings for branding.
-3. Use translation files or custom app for deep text changes.
-4. Avoid editing core LMS source files directly.
-
----
-
-# 19. Localization and Myanmar Language
-
-## Purpose
-
-Myanmar language support helps MPs and staff access training content in familiar language.
-
-## Content Localization
-
-Recommended approach:
-
-| Area | Recommendation |
-|---|---|
-| Course titles | English/Myanmar or bilingual |
-| Lesson content | Myanmar for learner-facing courses |
-| Legal terms | Use official approved translation |
-| Admin menus | Keep English if admins are trained |
-| Certificates | Follow official language policy |
-
-## Create Myanmar Content
-
-Steps:
-
-1. Create course title in Myanmar or bilingual format.
-2. Add lesson text in Myanmar.
-3. Upload Myanmar PDFs where required.
-4. Test display on desktop and mobile.
-5. Confirm fonts render correctly.
-
-[Screenshot: Myanmar lesson content]
-
-## Myanmar Language Warning
-
-Use Unicode Myanmar text. Avoid legacy fonts or non-Unicode encoding.
-
----
-
-# 20. Login with Microsoft and SSO Overview
-
-## Purpose
-
-Single Sign-On allows users to log in using official Microsoft accounts or another identity provider.
-
-## SSO Benefits
-
-| Benefit | Explanation |
-|---|---|
-| Easier login | Users use official accounts |
-| Better security | Central password policy |
-| Faster offboarding | Disable account centrally |
-| Auditability | Login access can be reviewed |
-
-## SSO Options
-
-Possible options include:
-
-1. Microsoft Entra ID / Azure AD.
-2. Keycloak as identity broker.
-3. Authentik as identity provider.
-4. Frappe Social Login Key configuration.
-
-## Recommended Pilot Approach
-
-For pilot phase:
-
-1. Start with local accounts for controlled testing.
-2. Prepare Microsoft login separately.
-3. Test SSO with 2-3 pilot users.
-4. Roll out SSO only after stable login testing.
-
-[Screenshot: Social Login Key settings]
-
-## SSO Warning
-
-Do not disable administrator password login until SSO has been fully tested and a fallback admin account exists.
-
----
-
-# 21. Backup Recommendations
-
-## Purpose
-
-Backups protect course data, user data, uploaded files, progress, and certificates.
-
-## What to Back Up
-
-| Item | Reason |
-|---|---|
-| Database | Users, courses, progress, settings |
-| Private files | Internal PDFs and attachments |
-| Public files | Logos, images, course media |
-| Configuration | Environment and compose configuration |
-| Custom branding scripts | Reproducibility |
-
-## Recommended Backup Schedule
-
-| Environment | Frequency |
-|---|---|
-| Pilot | Daily or before major changes |
-| Production | Daily minimum |
-| Before upgrade | Always |
-| Before rebuild | Always |
-
-## Backup Validation
-
-Backups are useful only if restore is tested.
-
-Recommended:
-
-1. Take backup.
-2. Restore to test environment.
-3. Confirm login works.
-4. Confirm courses and files exist.
-5. Confirm learner progress exists.
-
----
-
-# 22. Best Practices
-
-## Administration Best Practices
-
-1. Use named admin accounts.
-2. Limit System Manager role.
-3. Keep course ownership clear.
-4. Review content before publishing.
-5. Use batches for groups.
-6. Test as learner before rollout.
-7. Keep backup before upgrade.
-8. Document every configuration change.
-
-## Course Design Best Practices
-
-1. Use short lessons.
-2. Use clear course objectives.
-3. Use simple language.
-4. Add quizzes only where useful.
-5. Use official terminology.
-6. Avoid long PDFs as the only learning method.
-
-## Security Best Practices
-
-1. Use strong passwords.
-2. Use official email addresses.
-3. Disable unused users.
-4. Avoid public sharing of internal materials.
-5. Review role assignments regularly.
-6. Use HTTPS in production.
-7. Use SSO when ready.
-
----
-
-# 23. Pilot Deployment Workflow
-
-## Purpose
-
-The pilot workflow helps the organization test LMS usage before full production rollout.
-
-## Pilot Phases
-
-| Phase | Activity |
-|---|---|
-| Phase 1 | Technical setup and branding |
-| Phase 2 | Admin training |
-| Phase 3 | Create pilot courses |
-| Phase 4 | Enroll small user group |
-| Phase 5 | Collect feedback |
-| Phase 6 | Improve content and workflow |
-| Phase 7 | Prepare production rollout |
-
-## Recommended Pilot Group
-
-| Group | Size |
-|---|---|
-| Training Admins | 2-5 users |
-| MPs | 5-10 users |
-| Parliamentary Staff | 10-20 users |
-| Committee Members | 1 committee group |
-
-## Pilot Success Criteria
-
-1. Users can log in.
-2. Users can access assigned courses.
-3. Users can complete lessons.
-4. Quizzes work as expected.
-5. Admins can track progress.
-6. Reports are understandable.
-7. Branding is acceptable.
-8. No unauthorized access is observed.
-
----
-
-# 24. User Guide
-
-## For MPs and Parliamentary Staff
-
-### Log In
-
-1. Open the platform URL.
-2. Enter username/email.
-3. Enter password or use SSO if available.
-4. Click Login.
-
-[Screenshot: Login page]
-
-### Find Assigned Courses
-
-Navigation:
-
-`LMS Home > Courses`
-
-Steps:
-
-1. Click Courses.
-2. Review available or assigned courses.
-3. Click a course.
-4. Start the first lesson.
-
-[Screenshot: Courses page]
-
-### Complete a Lesson
-
-1. Open the course.
-2. Select lesson.
-3. Read text or watch video.
-4. Download attached material if needed.
-5. Mark lesson complete if required.
-6. Continue to next lesson.
-
-[Screenshot: Lesson view]
-
-### Take a Quiz
-
-1. Open quiz.
-2. Read instructions.
-3. Answer all questions.
-4. Submit.
-5. Review score if available.
-
-[Screenshot: Quiz page]
-
-### View Progress
-
-Navigation:
-
-`LMS Home > Course > Progress`
-
-Learners can check completed lessons, remaining lessons, and quiz status.
-
-### Download Certificate
-
-If certificate is enabled:
-
-1. Complete all required course activities.
-2. Open course completion page.
-3. Download certificate if available.
-
-[Screenshot: Certificate download]
-
----
-
-# 25. Security and Permissions Guide
-
-## Role Principles
-
-Use least privilege. A user should receive only the access needed for their work.
-
-## Recommended Permissions
-
-| User Type | Access |
-|---|---|
-| Super Admin | Full technical and LMS configuration |
-| Training Admin | Course, lesson, batch, quiz, enrollment management |
-| MP | Learner access only |
-| Staff | Learner access only unless assigned admin duty |
-| Committee Member | Learner access plus committee-specific courses |
-
-## Account Management
-
-1. Create individual accounts.
-2. Disable users who leave.
-3. Review inactive accounts.
-4. Avoid shared accounts.
-5. Use strong passwords or SSO.
-
-## Sensitive Content Rules
-
-1. Use private courses for internal material.
-2. Avoid public access for committee documents.
-3. Confirm permissions before uploading confidential files.
-4. Do not email sensitive learning links externally.
-
----
-
-# 26. Troubleshooting Guide
-
-## User Cannot Log In
-
-Check:
-
-1. User account is enabled.
-2. Email is correct.
-3. Password is reset if needed.
-4. SSO configuration is working if SSO is enabled.
-5. User has correct roles.
-
-## User Cannot See Course
-
-Check:
-
-1. User is enrolled.
-2. User is in correct batch.
-3. Course is published.
-4. Course is not restricted to another group.
-5. User has learner role.
-
-## Course Shows Old Name
-
-Check:
-
-1. Desktop Icon label.
-2. Course title.
-3. Website Settings.
-4. Browser cache.
-5. Frappe cache.
-
-Ask user to hard refresh:
-
-`Ctrl + Shift + R`
-
-## Uploaded PDF Not Visible
-
-Check:
-
-1. File uploaded successfully.
-2. Lesson was saved.
-3. User has course access.
-4. File is not private beyond user permission.
-
-## Quiz Score Not Showing
-
-Check:
-
-1. Quiz is published.
-2. User submitted quiz.
-3. Passing score is configured.
-4. Progress calculation has updated.
-
-## Branding Still Shows Frappe Learning
-
-Possible sources:
-
-| Location | Fix |
-|---|---|
-| Desktop Icon | Change Desktop Icon label |
-| Demo course | Rename course title and description |
-| Getting started panel | May require translation or frontend override |
-| Email templates | Update notification/email templates |
-| Source translation string | Use translation/custom app approach |
-
----
-
-# 27. Deployment Checklist
-
-## Before Pilot
-
-| Item | Done |
-|---|---|
-| LMS installed without ERPNext |  |
-| Payments dependency installed |  |
-| Branding applied |  |
-| Admin password changed |  |
-| Test users created |  |
-| Pilot courses created |  |
-| PDF/video upload tested |  |
-| Course enrollment tested |  |
-| Progress tracking tested |  |
-| Backup tested |  |
-
-## Before Production
-
-| Item | Done |
-|---|---|
-| Real domain configured |  |
-| HTTPS enabled |  |
-| Strong passwords configured |  |
-| Default admin disabled or secured |  |
-| SSO tested if required |  |
-| Public access reviewed |  |
-| Role permissions reviewed |  |
-| Backup automation enabled |  |
-| Restore test completed |  |
-| Upgrade process documented |  |
-| Production support owner assigned |  |
-
-## Post-Deployment
-
-| Item | Frequency |
-|---|---|
-| Review users and roles | Monthly |
-| Review backups | Weekly |
-| Test restore | Quarterly |
-| Review course quality | Each training cycle |
-| Review security settings | Monthly |
-| Review feedback | Pilot and quarterly |
-
----
-
-# Final Notes
-
-The Hluttaw Digital Learning Platform should remain simple during the pilot phase. Focus on stable access, useful courses, clear roles, and measurable learning progress.
-
-Avoid deep source-code changes during pilot. Use upgrade-safe configuration, database labels, fixtures, translations, or a small custom app only when repeated branding or localization changes must survive updates.
-
+Course/Role/Permission/Storage ပြင်ဆင်မှုကို Production တိုက်ရိုက်မလုပ်မီ Test
+User နှင့် Staging/Approved Pilot တွင် စမ်းပါ။ Visible Menu ဖုံးထားခြင်းကို
+Security ဟုမယူဆဘဲ Server-side Permission နှင့် Private File Access ကို
+အမြဲတမ်း သီးခြားအတည်ပြုပါ။

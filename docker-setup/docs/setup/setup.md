@@ -1,54 +1,56 @@
-# Frappe Docker Setup
+# Frappe Docker ပထမဆုံး Setup လမ်းညွှန်
 
-`setup.sh` is the first-installation and infrastructure-reconfiguration script.
-It builds the custom image from `apps.json`, starts Docker Compose, creates the
-site, installs apps, configures storage/branding, and clears stale UI caches.
-It is not the normal application update command.
+`setup.sh` သည် Site ကို ပထမဆုံး Install လုပ်ရန်နှင့် Infrastructure
+configuration ကို ရည်ရွယ်ချက်ရှိရှိ ပြန်ပြင်ရန်သုံးသော Script ဖြစ်သည်။
+`apps.json` မှ Custom image ဆောက်ခြင်း၊ Docker Compose စတင်ခြင်း၊ Site
+ဖန်တီးခြင်း၊ Apps install လုပ်ခြင်း၊ Storage/Branding ပြင်ခြင်းနှင့် UI Cache
+ရှင်းခြင်းတို့ကို လုပ်ပေးသည်။ ပုံမှန် Code update အတွက် မသုံးပါနှင့်။
 
-## Quick Start
+## အမြန်စတင်နည်း
 
-Run from the `docker-setup` folder:
+`docker-setup` folder မှ run ပါ။
 
 ```bash
 chmod +x setup.sh deploy.sh ops.sh backup.sh restore.sh
 ./setup.sh
 ```
 
-The script displays the target site, image, rebuild mode, and S3 mode, then
-requires typing `SETUP` before it changes the stack. Trusted automation can use
-`./setup.sh --yes` to skip the prompt.
+Script သည် target Site, image, rebuild mode နှင့် S3 mode ကို ပြပြီး Stack
+မပြောင်းမီ `SETUP` ဟု အတည်ပြုခိုင်းသည်။ ယုံကြည်ရသော Automation မှသာ
+`./setup.sh --yes` ကို သုံးပါ။
 
-Open the site:
+Local Site ကို `.env` ရှိ port ဖြင့်ဖွင့်ပါ။ Default နမူနာ—
 
 ```text
 http://localhost:8787
 ```
 
-## First Setup vs Later Operations
+## First Setup နှင့် နောက်ပိုင်း Operations
 
-Use normal setup only when creating the stack and site for the first time:
+Stack နှင့် Site ကို ပထမဆုံးဖန်တီးသည့်အခါ—
 
 ```bash
 ./setup.sh
 ```
 
-If the running backend already contains `SITE_DOMAIN`, a normal setup run stops
-and directs you to `deploy.sh`. This prevents a daily code update from silently
-running the larger provisioning workflow.
+Running Backend တွင် `SITE_DOMAIN` ရှိပြီးသားဆိုလျှင် ပုံမှန် Setup သည် ရပ်ပြီး
+`deploy.sh` သုံးရန် ပြောမည်။ ထို Guard ကြောင့် နေ့စဉ် Code update တစ်ခုက
+Provisioning workflow တစ်ခုလုံးကို မတော်တဆ run မိခြင်းမှ ကာကွယ်ပေးသည်။
 
-For a deliberate infrastructure reconfiguration of an existing site, use:
+ရှိပြီးသား Site ၏ Infrastructure configuration ကို ရည်ရွယ်ချက်ရှိရှိ
+ပြောင်းရန်—
 
 ```bash
 ./setup.sh --reconfigure
 ```
 
-Add `--rebuild` only when the reconfiguration also needs a fresh image:
+Image အသစ်လည်း ဆောက်ရန်လိုမှ—
 
 ```bash
 ./setup.sh --reconfigure --rebuild
 ```
 
-Routine code updates use:
+ပုံမှန် Code/App update အတွက်—
 
 ```bash
 ./deploy.sh check
@@ -56,20 +58,19 @@ Routine code updates use:
 ./deploy.sh apply
 ```
 
-Use `--reconfigure` when:
+`--reconfigure` ကို အောက်ပါအချိန်များတွင် သုံးပါ။
 
-- Changing local/external database infrastructure settings.
-- Regenerating custom app mounts or other generated Compose configuration.
-- Applying setup-managed S3, public URL, or branding configuration.
+- Local/External Database infrastructure settings ပြောင်းခြင်း။
+- Custom App mounts သို့မဟုတ် generated Compose config ပြန်ဖန်တီးခြင်း။
+- Setup ကစီမံသော S3, Public URL သို့မဟုတ် Branding ပြောင်းခြင်း။
 
-See [Application Deployment Guide](../deployment/deploy.md) and
-[Runtime Operations Guide](../operations/operations.md) for all later operations.
+နောက်ပိုင်း Operation များအတွက် [Deployment လမ်းညွှန်](../deployment/deploy.md)
+နှင့် [Runtime Operations လမ်းညွှန်](../operations/operations.md) ကို ဖတ်ပါ။
 
-## apps.json
+## `apps.json`
 
-`apps.json` controls which Frappe apps are included in the image and installed on the site.
-
-Current minimal example:
+`apps.json` သည် Image ထဲပါမည့် Frappe Apps နှင့် Site တွင် Install လုပ်မည့်
+Apps များကို သတ်မှတ်သည်။
 
 ```json
 [
@@ -86,29 +87,21 @@ Current minimal example:
 ]
 ```
 
-For normal Frappe apps, set:
+- ပုံမှန် Frappe App — `"is_custom": false`
+- Local Development/Custom App — `"is_custom": true`
 
-```json
-"is_custom": false
-```
-
-For local development/custom apps, set:
-
-```json
-"is_custom": true
-```
-
-Custom apps are cloned into:
+Custom Apps များကို အောက်ပါနေရာသို့ Clone လုပ်ပြီး `setup.sh` က
+`docker-compose.override.yml` ကို အလိုအလျောက်ပြန်ဖန်တီးကာ လိုအပ်သော
+Containers များတွင် Mount လုပ်သည်။ Generated override ကို Manual မပြင်ပါနှင့်။
 
 ```text
 docker-setup/frappe_docker/apps/<app-name>
 ```
 
-Then `setup.sh` regenerates `docker-compose.override.yml` automatically and mounts those custom apps into the required containers. You do not need to manually edit `docker-compose.override.yml` for custom apps.
+### Private GitHub Repository
 
-### Private GitHub repositories
-
-Keep credentials out of repository URLs. Mark a private app explicitly:
+Credential ကို Repository URL ထဲ မထည့်ပါနှင့်။ Private App ကို ရှင်းလင်းစွာ
+သတ်မှတ်ပါ။
 
 ```json
 {
@@ -120,54 +113,53 @@ Keep credentials out of repository URLs. Mark a private app explicitly:
 }
 ```
 
-Store a fine-grained GitHub token only in the ignored `.env` file:
+Fine-grained GitHub token ကို Git က ignore လုပ်ထားသော `.env` ထဲတွင်သာ
+သိမ်းပါ။
 
 ```env
 GITHUB_TOKEN=<FINE_GRAINED_GITHUB_TOKEN>
 ```
 
-The token needs read-only `Contents` access to every repository marked
-`private`. `setup.sh` supplies it to host-side Git operations through a
-temporary HTTP authorization header. During the Docker image build it creates
-a mode-`600` temporary `apps.json`, supplies that file as a BuildKit secret,
-redacts the token from build output, and deletes the temporary file afterward.
-Before cloning or building, setup verifies access to each configured private
-repository branch with terminal credential prompts disabled. An invalid,
-expired, unauthorized, or insufficiently scoped token therefore stops with a
-clear error instead of asking for a username or password.
+Token တွင် `private: true` App repositories အားလုံးအတွက် read-only
+**Contents** permission ရှိရမည်။ Setup သည် Host-side Git operation တွင်
+Temporary HTTP authorization header သုံးပြီး Docker build တွင် mode `600`
+Temporary `apps.json` ကို BuildKit secret အဖြစ်ပေးသည်။ Build ပြီးလျှင် Temporary
+file ကိုဖျက်ပြီး Token ကို Output တွင် ဖုံးကွယ်သည်။
 
-Do not use either of these credential-bearing URL forms:
+Setup မစတင်မီ Private repository branch တစ်ခုချင်းကို Terminal credential
+prompt ပိတ်ထား၍ Access စစ်သည်။ Token မှားခြင်း၊ Expire ဖြစ်ခြင်း၊ Repository
+Access မရှိခြင်း သို့မဟုတ် Permission မလုံလောက်ခြင်း ဖြစ်ပါက Username/Password
+တောင်းမနေဘဲ Error ဖြင့်ရပ်သင့်သည်။
+
+အောက်ပါ URL ပုံစံများ မသုံးပါနှင့်။
 
 ```text
 https://<TOKEN>@github.com/OWNER/REPOSITORY.git
 https://<USERNAME>:<TOKEN>@github.com/OWNER/REPOSITORY.git
 ```
 
-If a token has appeared in terminal output, a log, a screenshot, or Git
-history, revoke it in GitHub and generate a replacement.
+Token သည် Terminal, Log, Screenshot သို့မဟုတ် Git history ထဲပေါ်ခဲ့ပါက GitHub
+တွင် ချက်ချင်း Revoke လုပ်ပြီး အသစ်ထုတ်ပါ။
 
-## What setup.sh Does
+## `setup.sh` လုပ်ဆောင်ပုံ
 
-1. Checks required commands: `git`, `jq`, `docker`, and `python3`.
-2. Loads `.env` safely.
-3. Validates required environment variables.
-4. Validates `apps.json`.
-5. Clones `frappe_docker` if it is missing.
-6. Clones custom apps from `apps.json`.
-7. Regenerates `docker-compose.override.yml`.
-8. Checks if the custom image already contains all apps.
-9. Builds or reuses the custom image.
-10. Starts Docker Compose.
-11. Refreshes `sites/apps.txt`.
-12. Creates the site if needed.
-13. Installs apps one by one.
-14. Migrates an existing site only when `--reconfigure` was explicitly given.
-15. Clears stale Frappe asset cache.
-16. Prints installed apps.
+1. `git`, `jq`, `docker`, `python3` ရှိကြောင်း စစ်သည်။
+2. `.env` ကို Safe ဖြစ်စွာ ဖတ်ပြီး Required Variables ကိုစစ်သည်။
+3. `apps.json` format နှင့် Private repository access ကိုစစ်သည်။
+4. မရှိသေးပါက `frappe_docker` ကို Clone လုပ်သည်။
+5. Custom Apps များကို Clone/Sync လုပ်သည်။
+6. `docker-compose.override.yml` ကို ပြန်ဖန်တီးသည်။
+7. Custom image တွင် Apps အားလုံးပါ/မပါ စစ်ပြီး လိုအပ်မှ Build လုပ်သည်။
+8. Docker Compose ကို စတင်သည်။
+9. `sites/apps.txt` ကို Refresh လုပ်သည်။
+10. Site မရှိသေးပါက ဖန်တီးသည်။
+11. Apps များကို တစ်ခုချင်း Install လုပ်သည်။
+12. `--reconfigure` ပေးထားမှ ရှိပြီးသား Site ကို Migrate လုပ်သည်။
+13. Frappe Asset Cache ကို ရှင်းပြီး Installed Apps ကို ပြသည်။
 
 ## Required Environment Variables
 
-These values must exist in `.env`:
+`.env` တွင် အနည်းဆုံး အောက်ပါတန်ဖိုးများ ရှိရမည်။
 
 ```text
 CUSTOM_IMAGE
@@ -178,10 +170,9 @@ ADMIN_PASSWORD
 MYSQL_ROOT_PASSWORD
 ```
 
-`GITHUB_TOKEN` is additionally required when `apps.json` contains an entry
-with `"private": true`.
+`apps.json` တွင် `"private": true` ပါလျှင် `GITHUB_TOKEN` လည်း လိုသည်။
 
-Common values:
+Local Database နမူနာ—
 
 ```env
 CUSTOM_IMAGE=frappe-erpnext-hrms-insights:v16
@@ -190,84 +181,72 @@ COMPOSE_FILE=pwd-with-apps.yml
 SITE_DOMAIN=frontend
 FRAPPE_PORT=8787
 FRAPPE_INTERNAL_PORT=8080
-MYSQL_ROOT_PASSWORD=admin
-MARIADB_ROOT_PASSWORD=admin
-DB_ROOT_USERNAME=root
-DB_NAME=
-DB_PASSWORD=admin
-ADMIN_PASSWORD=admin
-```
-
-Database connection and site-creation settings:
-
-```env
 DATABASE_MODE=local
 DB_HOST=db
 DB_PORT=3306
+MYSQL_ROOT_PASSWORD=<strong-root-password>
+MARIADB_ROOT_PASSWORD=<strong-root-password>
 DB_ROOT_USERNAME=root
 DB_ROOT_PASSWORD=
-DB_NAME=hluttaw_lms
-DB_PASSWORD=secure_site_db_password
+DB_NAME=
+DB_PASSWORD=<strong-site-db-password>
+ADMIN_PASSWORD=<strong-admin-password>
 ```
 
-- `DATABASE_MODE` — `local` for Compose MariaDB or `external` for a separate server
-- `DB_HOST` / `DB_PORT` — database address reachable from the Frappe containers
-- `DB_ROOT_USERNAME` — MariaDB admin user passed to `bench new-site` (default: `root`)
-- `DB_ROOT_PASSWORD` — external provisioning password; local mode falls back to `MYSQL_ROOT_PASSWORD`
-- `DB_NAME` — new sites only; leave empty to let Frappe derive it from `SITE_DOMAIN`
-- `DB_PASSWORD` — new sites only; site database user password stored in `site_config.json`
+Database Variables—
 
-Use [External MariaDB on an Ubuntu VM](../database/external-database-ubuntu.md) to provision
-a new database host. See [External MariaDB](../database/external-database.md) before moving
-an existing site. Changing `DB_HOST` does not migrate any database records.
+- `DATABASE_MODE` — Compose MariaDB အတွက် `local`၊ သီးခြား Server အတွက်
+  `external`။
+- `DB_HOST` / `DB_PORT` — Frappe containers မှ ရောက်နိုင်သော Database address။
+- `DB_ROOT_USERNAME` — `bench new-site` သို့ပေးမည့် MariaDB Provisioning User။
+- `DB_ROOT_PASSWORD` — External Database provisioning password။ Local mode
+  တွင် Blank ထားပါက `MYSQL_ROOT_PASSWORD` ကိုသုံးသည်။
+- `DB_NAME` — Site အသစ်အတွက်သာဖြစ်သည်။ Blank ထားလျှင် Frappe က
+  `SITE_DOMAIN` မှ name ထုတ်သည်။
+- `DB_PASSWORD` — Site အသစ်၏ Database User password ဖြစ်ပြီး
+  `site_config.json` တွင် သိမ်းမည်။
+
+External Database အသစ်အတွက်
+[Ubuntu VM ပေါ်ရှိ External MariaDB](../database/external-database-ubuntu.md)၊
+ရှိပြီးသား Site ကိုရွှေ့ရန် [External MariaDB Migration](../database/external-database.md)
+ကို ဖတ်ပါ။ `DB_HOST` ပြောင်းရုံဖြင့် Database records မရွှေ့ပါ။
 
 ## Database Credential Repair
 
-Sometimes Frappe can show this error:
+အောက်ပါ Error သည် `sites/<site>/site_config.json` ရှိ Password နှင့် MariaDB
+User password မတူကြောင်း ဆိုလိုသည်။
 
 ```text
 Access denied for user '<site-db-user>'@'<container-ip>'
 ```
 
-This means the password in:
+Setup သည် `list-apps` တွင် ဒီ Error ကိုတွေ့ပါက `repair_db_credentials.py` ကို
+Backend container သို့ ကူးပြီး User password/grants ပြုပြင်ကာ ထပ်စမ်းသည်။
+External Database အတွက် `ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=true` ကို
+ရည်ရွယ်ချက်ရှိရှိ မသတ်မှတ်ထားပါက Repair ကို ပိတ်ထားသည်။
 
-```text
-sites/<site>/site_config.json
-```
-
-does not match the MariaDB user password.
-
-The setup script detects this during `list-apps`, copies
-`repair_db_credentials.py` into the backend container, repairs the MariaDB user
-password/grants, and retries. For an external database, repair is blocked unless
-`ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=true` is explicitly configured.
-
-Manual repair command:
+Manual Repair နမူနာ—
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml cp repair_db_credentials.py backend:/tmp/repair_db_credentials.py
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend /home/frappe/frappe-bench/env/bin/python /tmp/repair_db_credentials.py frontend
 ```
 
-## Stale UI / Missing CSS Fix
+`frontend` ကို Site အမည်မှန်ဖြင့် ပြောင်းပါ။ Production တွင် Repair မလုပ်မီ
+Verified Backup ယူပြီး target Database/User ကို စစ်ပါ။
 
-If the Desk UI looks like raw HTML, the browser is usually requesting old hashed CSS files.
+## UI အဟောင်း သို့မဟုတ် CSS မပေါ်ခြင်း
 
-Example:
+Desk UI သည် Raw HTML ပုံစံဖြစ်နေပါက Browser က Hash အဟောင်းပါ CSS file ကို
+တောင်းနေခြင်းဖြစ်နိုင်သည်။
 
 ```text
 /assets/frappe/dist/css/desk.bundle.OLDHASH.css 404
 ```
 
-`setup.sh` now clears Frappe's cached `assets_json` and restarts:
-
-```text
-backend frontend websocket
-```
-
-This keeps the UI asset references synced with the current Docker image.
-
-After setup, if the browser still shows old UI, hard refresh:
+Setup သည် Frappe `assets_json` Cache ကိုရှင်းပြီး `backend`, `frontend`,
+`websocket` ကို Restart လုပ်သည်။ Setup ပြီးလည်း UI အဟောင်းမြင်ပါက Browser တွင်
+Hard Refresh လုပ်ပါ။
 
 ```text
 Ctrl + Shift + R
@@ -275,61 +254,44 @@ Ctrl + Shift + R
 
 ## Docker Credential Helper Error
 
-If Docker fails while pulling images:
+Image pull လုပ်စဉ် အောက်ပါ Error ဖြစ်ပါက—
 
 ```text
 error getting credentials - err: exit status 1
 ```
 
-Check:
-
 ```bash
 cat ~/.docker/config.json
 ```
 
-If it contains:
-
-```json
-{
-  "credsStore": "desktop.exe"
-}
-```
-
-replace it with:
+WSL/Linux environment တွင် မရှိသော `desktop.exe` Credential helper ကို
+ညွှန်နေခြင်း ဖြစ်နိုင်သည်။ Original file ကို Backup ယူပြီးမှ မိမိ environment
+နှင့်ကိုက်ညီသော Docker credential configuration ပြင်ပါ။
 
 ```bash
 cp ~/.docker/config.json ~/.docker/config.json.bak
-printf '{}\n' > ~/.docker/config.json
 ```
 
-Then retry:
+Credential storage ကိုဖျက်ခြင်းမလုပ်မီ ရှိပြီးသား Registry access များအပေါ်
+သက်ရောက်မှုကို စစ်ပါ။ ပြင်ပြီးလျှင် `./setup.sh` ကို ထပ် run ပါ။
 
-```bash
-./setup.sh
-```
-
-## Verify Setup
-
-From `docker-setup`:
+## Setup စစ်ဆေးခြင်း
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml ps
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend bench --site frontend list-apps
 ```
 
-Expected installed apps:
+`frontend` ကို `SITE_DOMAIN` အမှန်ဖြင့်ပြောင်းပြီး `apps.json` ရှိ Required Apps
+အားလုံး Output တွင်ပါကြောင်း စစ်ပါ။
 
-```text
-frappe
-erpnext
-hrms
-```
+## မှတ်ချက်များ
 
-## Notes
-
-- `docker-compose.override.yml` is generated by `setup.sh`. Do not manually maintain it for custom apps.
-- `docker-setup/apps.json` is passed to the image build as a BuildKit secret.
-  Edit that source file rather than creating a second copy under
-  `frappe_docker`.
-- HRMS patch messages like `rename_field ... not found` can appear during install. If the install continues and prints the success message, those warnings are usually safe.
-- `pwd-with-apps.yml` sets `restart: unless-stopped` on long-running services so containers come back after reboot or crash. Run `docker compose up -d` once after pulling this change. Also enable Docker on boot: `sudo systemctl enable docker`.
+- `docker-compose.override.yml` ကို `setup.sh` က Generate လုပ်သည်။ Custom App
+  အတွက် Manual မထိန်းသိမ်းပါနှင့်။
+- Image build သည် `docker-setup/apps.json` ကို BuildKit secret အဖြစ်သုံးသည်။
+  `frappe_docker` အောက်တွင် Duplicate copy မဖန်တီးပါနှင့်။
+- App install အတွင်း Patch warning ပေါ်နိုင်သည်။ Script success message,
+  Installed Apps နှင့် Migration status ကို စစ်ပြီးမှ အောင်မြင်သည်ဟုယူဆပါ။
+- Long-running Services များတွင် `restart: unless-stopped` သတ်မှတ်ထားသည်။
+  Docker ကို Boot တွင်စတင်ရန် `sudo systemctl enable docker` သုံးနိုင်သည်။

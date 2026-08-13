@@ -1,22 +1,21 @@
-# Reverse Proxy Guide
+# Reverse Proxy လမ်းညွှန်
 
-This guide explains how to expose a Frappe Docker site through a public HTTPS domain using a reverse proxy.
-
-The recommended production pattern is:
+Frappe Docker Site ကို Public HTTPS Domain ဖြင့် အသုံးပြုနိုင်ရန် Reverse Proxy
+ချိတ်ဆက်နည်းဖြစ်သည်။ အကြံပြု Production flow—
 
 ```text
 User Browser
   -> https://app.example.com
-  -> Reverse proxy on host server
+  -> Reverse Proxy on App Server
   -> http://127.0.0.1:8787
   -> Docker frontend container:8080
 ```
 
-The Frappe Docker app should not be exposed directly to the public internet.
+Frappe Docker App port ကို Public Internet သို့ တိုက်ရိုက်မဖွင့်ပါနှင့်။
 
-## 1. Recommended `.env` Values
+## 1. `.env` Values
 
-Keep the internal Frappe site name separate from the public domain.
+Internal Frappe Site name နှင့် Public Domain ကို သီးခြားထားပါ။
 
 ```env
 SITE_DOMAIN=frontend
@@ -26,105 +25,63 @@ FRAPPE_INTERNAL_PORT=8080
 BIND_ADDRESS=127.0.0.1
 ```
 
-Meaning:
+- `SITE_DOMAIN` — Internal Frappe Site name။
+- `PUBLIC_URL` — User Browser တွင်ဖွင့်မည့် URL။
+- `BIND_ADDRESS=127.0.0.1` — Docker frontend port ကို Host တစ်လုံးအတွင်းမှသာ
+  ရောက်နိုင်စေသည်။ Public traffic သည် Reverse Proxy ဖြင့်သာဝင်ရမည်။
 
-```text
-SITE_DOMAIN=frontend
-```
-
-This is the internal Frappe site name.
-
-```text
-PUBLIC_URL=https://app.example.com
-```
-
-This is the URL users open in the browser.
-
-```text
-BIND_ADDRESS=127.0.0.1
-```
-
-This means the Docker frontend port is available only on the server itself. The public internet should reach the app only through the reverse proxy.
-
-Do not change `FRAPPE_INTERNAL_PORT=8080` unless you also understand the internal container Nginx configuration.
+Internal Container Nginx configuration ကို နားလည်ပြီး သက်ဆိုင်ရာ Config
+အားလုံးပြင်ခြင်းမရှိပါက `FRAPPE_INTERNAL_PORT=8080` ကို မပြောင်းပါနှင့်။
 
 ## 2. DNS Setup
 
-Create a DNS record:
+DNS provider တွင် Record ဖန်တီးပါ။
 
 ```text
 Type: A
 Name: app
-Value: your-server-public-ip
+Value: <app-server-public-ip>
 ```
 
-Example:
-
-```text
-app.example.com -> 203.0.113.10
-```
-
-Wait until DNS resolves:
+DNS resolve ဖြစ်ကြောင်း စစ်ပါ။
 
 ```bash
 nslookup app.example.com
-```
-
-or:
-
-```bash
 dig app.example.com
 ```
 
-## 3. Start the Frappe Docker Stack
-
-Run:
+## 3. Frappe Stack စတင်ခြင်း
 
 ```bash
-cd /path/to/docker-setup
+cd <project-path>/docker-setup
 docker compose up -d
-```
-
-Check containers:
-
-```bash
 docker compose ps
-```
-
-The Frappe app should be reachable from the server itself:
-
-```bash
 curl -I http://127.0.0.1:8787
 ```
 
-## 4. Set Frappe Public URL
+နောက်ပိုင်းရှိ command များတွင် Domain, Site name, Path နှင့် Port ကို မိမိ
+Environment အမှန်ဖြင့် ပြောင်းပါ။
 
-Set the public host name:
+## 4. Frappe Public URL သတ်မှတ်ခြင်း
 
 ```bash
-cd /path/to/docker-setup
+cd <project-path>/docker-setup
 docker compose exec backend bench --site frontend set-config host_name https://app.example.com
 docker compose exec backend bench --site frontend clear-cache
 ```
 
-If `setup.sh` supports `PUBLIC_URL`, this can be applied automatically during setup.
+`setup.sh` သည် `.env` ရှိ `PUBLIC_URL` ကို Setup/Reconfigure အတွင်း Apply
+လုပ်နိုင်သည်။
 
-## 5. Nginx Reverse Proxy Example
-
-Install Nginx on the host server:
+## 5. Nginx Reverse Proxy
 
 ```bash
 sudo apt update
 sudo apt install nginx
-```
-
-Create a site config:
-
-```bash
 sudo nano /etc/nginx/sites-available/frappe-app.conf
 ```
 
-Example config:
+နမူနာ Config—
 
 ```nginx
 server {
@@ -136,13 +93,11 @@ server {
     location / {
         proxy_pass http://127.0.0.1:8787;
         proxy_http_version 1.1;
-
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
-
         proxy_read_timeout 120s;
         proxy_send_timeout 120s;
     }
@@ -150,21 +105,17 @@ server {
     location /socket.io {
         proxy_pass http://127.0.0.1:8787;
         proxy_http_version 1.1;
-
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
         proxy_read_timeout 120s;
         proxy_send_timeout 120s;
     }
 }
 ```
-
-Enable the config:
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/frappe-app.conf /etc/nginx/sites-enabled/frappe-app.conf
@@ -172,192 +123,126 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## 6. Enable HTTPS With Certbot
+Existing Symlink/config များရှိ/မရှိ စစ်ပြီးမှ `ln -s` လုပ်ပါ။ `nginx -t`
+မအောင်မြင်ပါက Reload မလုပ်ဘဲ Error ကိုအရင်ပြင်ပါ။
 
-Install Certbot:
+## 6. Certbot ဖြင့် HTTPS ဖွင့်ခြင်း
 
 ```bash
 sudo apt install certbot python3-certbot-nginx
-```
-
-Issue a certificate:
-
-```bash
 sudo certbot --nginx -d app.example.com
-```
-
-Test renewal:
-
-```bash
 sudo certbot renew --dry-run
 ```
 
-After this, users should open:
+Certificate ထုတ်ရန် DNS သည် Server အမှန်ကိုညွှန်ပြီး Ports `80`/`443`
+ရောက်နိုင်ရမည်။ ပြီးလျှင် `https://app.example.com` ကိုသုံးပါ။
 
-```text
-https://app.example.com
-```
+## 7. Caddy Alternative
 
-## 7. Caddy Reverse Proxy Alternative
-
-Caddy can manage HTTPS certificates automatically.
-
-Install Caddy, then create:
+Caddy သည် HTTPS Certificate ကို အလိုအလျောက်ထုတ်/သက်တမ်းတိုးနိုင်သည်။
 
 ```bash
 sudo nano /etc/caddy/Caddyfile
 ```
 
-Example:
-
 ```caddyfile
 app.example.com {
     reverse_proxy 127.0.0.1:8787
-
     encode gzip
-
     request_body {
         max_size 50MB
     }
 }
 ```
 
-Reload Caddy:
-
 ```bash
 sudo systemctl reload caddy
 ```
 
-Caddy automatically requests and renews HTTPS certificates if DNS points to the server and ports `80` and `443` are open.
+## 8. Firewall
 
-## 8. Firewall Rules
-
-Recommended public ports:
+Public ဖွင့်ရန်—
 
 ```text
-80  HTTP, redirect to HTTPS
+80  HTTP redirect to HTTPS
 443 HTTPS
-22  SSH, restricted to admins if possible
+22  SSH (Approved Admin sources only)
 ```
 
-Avoid exposing:
+Public မဖွင့်ရန်—
 
 ```text
 3306 / 3307  MariaDB
-8080         internal Frappe frontend port
+8080         Internal Frappe frontend
 8787         Docker frontend host port
-9000         websocket internal port
+9000         Internal WebSocket or Storage port, depending on the host
 ```
 
-If `BIND_ADDRESS=127.0.0.1`, port `8787` is already local-only.
+`BIND_ADDRESS=127.0.0.1` ဖြစ်ပါက `8787` သည် Local-only ဖြစ်သည်။
 
 ## 9. Verification
 
-Check local app:
-
 ```bash
 curl -I http://127.0.0.1:8787
-```
-
-Check public HTTPS:
-
-```bash
 curl -I https://app.example.com
-```
-
-Expected:
-
-```text
-HTTP/2 200
-```
-
-or:
-
-```text
-HTTP/1.1 200 OK
-```
-
-Check that HTTP redirects to HTTPS:
-
-```bash
 curl -I http://app.example.com
 ```
 
-Expected:
+HTTPS မှ `200`၊ HTTP မှ HTTPS သို့ `301`/`308` Redirect ရသင့်သည်။ Browser မှ—
 
-```text
-301 or 308 redirect to https://app.example.com
-```
+- Public HTTPS URL ဖွင့်ပါ။
+- Administrator Login ဝင်ပြီး Desk/Main page ဖွင့်ပါ။
+- `Ctrl + Shift + R` ဖြင့် Hard Refresh လုပ်ပါ။
+- `:8080`/`:8787` သို့ Redirect မဖြစ်ကြောင်းစစ်ပါ။
+- Realtime notification နှင့် File upload စမ်းပါ။
 
-Check browser:
+## 10. ပြဿနာဖြေရှင်းခြင်း
 
-- Open `https://app.example.com`
-- Login as Administrator
-- Open Desk or the main application page
-- Hard refresh with `Ctrl + Shift + R`
-- Confirm the browser does not redirect to port `8080` or `8787`
+### Browser က `:8080` သို့ Redirect ဖြစ်ခြင်း
 
-## 10. Common Problems
-
-### Browser redirects to `:8080`
-
-This usually means the internal frontend Nginx generated an absolute redirect with its container port.
-
-In the Docker frontend Nginx template, use:
+Internal frontend Nginx က Container port ပါသည့် Absolute Redirect ထုတ်ခြင်း
+ဖြစ်နိုင်သည်။ Template ထဲတွင် အောက်ပါ Settings လိုနိုင်သည်။
 
 ```nginx
 absolute_redirect off;
 port_in_redirect off;
 ```
 
-Then restart the frontend container:
-
 ```bash
 docker compose restart frontend
 ```
 
-### Public domain shows connection refused
+### Public Domain တွင် `connection refused`
 
-Check:
+DNS, Reverse Proxy service, Firewall `80`/`443` နှင့်
+`curl -I http://127.0.0.1:8787` ကို အစဉ်လိုက်စစ်ပါ။
 
-- DNS points to the server IP.
-- Reverse proxy is running.
-- Firewall allows ports `80` and `443`.
-- Docker frontend is running on `127.0.0.1:8787`.
+### WebSocket/Realtime မလုပ်ခြင်း
 
-### Websocket or realtime features do not work
-
-Check that the reverse proxy supports websocket upgrade headers:
+Reverse Proxy တွင် Upgrade Headers ပါကြောင်းစစ်ပါ။
 
 ```nginx
 proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection "upgrade";
 ```
 
-### File upload fails
+### File Upload မအောင်မြင်ခြင်း
 
-Increase upload size in both places:
-
-Docker compose:
+လိုအပ်မှသာ Compose နှင့် Reverse Proxy နှစ်နေရာလုံးတွင် Limit တူအောင်တိုးပါ။
 
 ```yaml
 CLIENT_MAX_BODY_SIZE: 50m
 ```
 
-Reverse proxy:
-
 ```nginx
 client_max_body_size 50m;
 ```
 
-Use a larger value only if the application requires large uploads.
+## 11. Production မှတ်ချက်
 
-## 11. Production Notes
-
-- Keep Docker frontend bound to `127.0.0.1`.
-- Use reverse proxy for public HTTPS.
-- Keep database ports private.
-- Set `PUBLIC_URL` to the real HTTPS URL.
-- Do not change `SITE_DOMAIN` unless intentionally renaming the Frappe site.
-- Test backup and restore before go-live.
-- Keep `.env` private.
+- Docker frontend ကို `127.0.0.1` တွင် Bind ပါ။
+- Public HTTPS အတွက် Reverse Proxy ကိုသုံးပါ။
+- Database/Redis/Internal ports ကို Private ထားပါ။
+- `PUBLIC_URL` ကို HTTPS URL အမှန် သတ်မှတ်ပါ။
+- Site ကို Rename လုပ်ရန်မဟုတ်ပါက `SITE_DOMAIN` မပြောင်းပါနှင့်။
+- Go-Live မတိုင်မီ Backup/Restore စမ်းပြီး `.env` ကို Secret အဖြစ်ကာကွယ်ပါ။

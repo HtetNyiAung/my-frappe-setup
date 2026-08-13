@@ -1,114 +1,131 @@
-# Authentik Setup Guide for Frappe/ERPNext
+# Frappe/ERPNext အတွက် Authentik Setup လမ်းညွှန်
 
-This guide explains the Authentik identity provider setup included in this repository and the step-by-step process to configure Single Sign-On (SSO) between Authentik and Frappe/ERPNext for the `my-frappe-setup` project.
-
-## Overview
-
-The `docker-compose.authentik.yml` file provisions a complete [Authentik](https://goauthentik.io/) stack. Authentik is an open-source Identity Provider (IdP) that you can use to manage authentication, SSO (Single Sign-On), and user identities for your Frappe applications or other services.
+Repository တွင်ပါသော Authentik Identity Provider (IdP) ကို စတင်ပြီး Frappe နှင့်
+Single Sign-On (SSO) ချိတ်ရန် အခြေခံလမ်းညွှန်ဖြစ်သည်။ Authentik ၏ UI/Flow သည်
+Version အလိုက်ကွာနိုင်သောကြောင့် Production ချိတ်ဆက်မှုတွင် သက်ဆိုင်ရာ Version
+၏ Official Documentation ဖြင့် Endpoint/Screen names ကိုလည်း စစ်ပါ။
 
 ## Architecture
 
-The setup relies on the following Docker services:
+`docker-compose.authentik.yml` တွင်—
 
-1. **`authentik-db`** (PostgreSQL): Stores all of Authentik's configuration, users, and tokens.
-2. **`authentik-redis`** (Redis): Used for caching, session management, and background task queuing.
-3. **`authentik-server`** (Authentik): The main web server that serves the UI and handles authentication requests/API calls.
-4. **`authentik-worker`** (Authentik): The background processor that handles tasks like email sending, synchronization, and cleanup.
+1. `authentik-db` — PostgreSQL Configuration/User/Token Data
+2. `authentik-redis` — Cache, Session နှင့် Background Queue
+3. `authentik-server` — UI, Authentication နှင့် API
+4. `authentik-worker` — Email, Synchronization နှင့် Cleanup tasks
 
-> **Note:** The Authentik stack is connected to the `frappe_network` (external network) so that Frappe/ERPNext containers can securely communicate directly with the Authentik instance for SSO integrations.
+ပါဝင်သည်။ Stack သည် Frappe containers နှင့် Private Network မှ ဆက်သွယ်နိုင်ရန်
+`frappe_network` သို့ ချိတ်ထားသည်။ Authentik Admin UI/Database/Redis ကို Public
+မဖွင့်ပါနှင့်။
 
-## Prerequisites
-
-Before starting Authentik, ensure your `.env` file has the necessary variables configured:
+## `.env` ပြင်ဆင်ခြင်း
 
 ```env
-# Authentik Configuration
 AUTHENTIK_PORT=9000
 AUTHENTIK_HTTPS_PORT=9443
-AUTHENTIK_DB_PASSWORD=authentik_db_password
+AUTHENTIK_DB_PASSWORD=<strong-database-password>
 AUTHENTIK_DB_NAME=authentik
 AUTHENTIK_DB_USER=authentik
-# RUN: openssl rand -base64 64 | tr -d '\n' to generate a secret key
-AUTHENTIK_SECRET_KEY=yoursecretkey_replacethis
-AUTHENTIK_TAG=2024.12.3
-# Initial login credentials
-AUTHENTIK_BOOTSTRAP_PASSWORD=admin
+AUTHENTIK_SECRET_KEY=<strong-random-secret>
+AUTHENTIK_TAG=<approved-version-tag>
+AUTHENTIK_BOOTSTRAP_PASSWORD=<strong-bootstrap-password>
 AUTHENTIK_BOOTSTRAP_EMAIL=admin@example.com
 ```
 
-*   **`AUTHENTIK_SECRET_KEY`**: This is critical for security. Make sure you generate a strong, unique secret key. If you change this later, existing sessions and some encrypted configurations may become corrupted.
-*   **`AUTHENTIK_PORT`**: The default port mapping for the Authentik UI (HTTP). By default, this maps to `9000` on the host.
+Strong Secret ထုတ်ရန်—
 
-## Step-by-Step Configuration
+```bash
+openssl rand -base64 64 | tr -d '\n'
+```
 
-### Step 1: Start Authentik & Frappe Containers
+`AUTHENTIK_SECRET_KEY` ကို နောက်မှပြောင်းပါက Existing Sessions နှင့် Encrypted
+configuration များ ပျက်နိုင်သည်။ Secret အဖြစ် Backup လုပ်ပြီး Git မထည့်ပါနှင့်။
+Production တွင် HTTP Admin port ကို Public expose မလုပ်ဘဲ HTTPS Reverse Proxy,
+VPN သို့မဟုတ် Management Network သုံးပါ။
 
-To start both the Frappe stack and the Authentik stack detached (in the background), you can run:
+## Stack စတင်ခြင်း
+
+Frappe နှင့် Authentik တွဲစတင်ရန်—
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.authentik.yml up -d
 ```
 
-*(Alternatively, to run just Authentik isolated:* `docker compose -f docker-compose.authentik.yml --env-file .env up -d`*)*
+Authentik သီးခြားစတင်ရန်—
 
-*Note: The first time you start up, the `authentik-server` container will say "authentik starting" for a few minutes while it provisions the database. You can monitor progress with `docker logs -f authentik-server`.*
+```bash
+docker compose -f docker-compose.authentik.yml --env-file .env up -d
+```
 
-### Step 2: Accessing the Dashboard
+ပထမဆုံး Run တွင် Database Provisioning ကြောင့် မိနစ်အနည်းငယ်ကြာနိုင်သည်။
 
-Ensure both Frappe (Port `8787`) and Authentik (Port `9000`) containers are running. 
-Once the services are fully started, you can access the dashboard at:
-*   [http://localhost:9000/](http://localhost:9000/)
+```bash
+docker logs -f authentik-server
+```
 
-Log in using the default `akadmin` superuser and the credentials you configured in your `.env` file:
-*   **Username**: `akadmin` (or the email defined in `AUTHENTIK_BOOTSTRAP_EMAIL`)
-*   **Password**: The value of `AUTHENTIK_BOOTSTRAP_PASSWORD` in your `.env` file.
+Local Development တွင် `http://localhost:9000/` ကိုဖွင့်ပြီး `akadmin` နှင့်
+`.env` ရှိ Bootstrap password ဖြင့် Login ဝင်ပါ။ Bootstrap credentials
+မသတ်မှတ်ထားပါက—
 
-*(Note: If you didn't set bootstrap credentials in your `.env` file, you must go to [http://localhost:9000/if/flow/initial-setup/](http://localhost:9000/if/flow/initial-setup/) to set the `akadmin` password manually.)*
+```text
+http://localhost:9000/if/flow/initial-setup/
+```
 
-## Volumes & State
+Production Public URL အတွက် `localhost` မသုံးပါနှင့်။ OAuth/OIDC Provider,
+Redirect URI, Client ID/Secret နှင့် Claims ကို Authentik/Frappe နှစ်ဖက်လုံးတွင်
+HTTPS URL အမှန်ဖြင့် တိတိကျကျကိုက်ညီအောင် ပြင်ပါ။
 
-State is stored using standard Docker named volumes and local mounts:
-*   `authentik_db_data`: PostgreSQL database persistence.
-*   `authentik_redis_data`: Redis cache persistence.
-*   `./authentik_media`: Holds custom branding media / icons uploaded to Authentik.
-*   `./authentik_custom_templates`: Holds override templates for the Authentik UI.
-*   `./authentik_certs`: Holds certificates / keys generated or uploaded to Authentik.
+## Persistent Data
 
-## Troubleshooting
+- `authentik_db_data` — PostgreSQL Data
+- `authentik_redis_data` — Redis Data
+- `./authentik_media` — Branding media/icons
+- `./authentik_custom_templates` — UI templates
+- `./authentik_certs` — Certificates/Keys
 
-### Reset `akadmin` Password
+Database, Media, Templates, Certificates နှင့် `AUTHENTIK_SECRET_KEY` ကို Backup
+နယ်ပယ်ထဲ ထည့်ပါ။
 
-If you forgot your `akadmin` password or need to recover admin access, run the following command to interactively set a new password:
+## ပြဿနာဖြေရှင်းခြင်း
+
+### `akadmin` Password Reset
 
 ```bash
 docker compose -f docker-compose.authentik.yml exec authentik-server python3 manage.py changepassword akadmin
 ```
 
-> **Note:** This command will prompt you to enter and confirm the new password in your terminal. The Authentik server container must be running for this to work.
+Container run နေရမည်ဖြစ်ပြီး Terminal prompt တွင် Strong password အသစ်ထည့်ပါ။
 
-### Fix Permission Denied on `/media/public`
+### `/media/public` Permission Error
 
-If `authentik-server` fails with `PermissionError: [Errno 13] Permission denied: '/media/public'`, fix the folder permissions from the host:
+`chmod -R 777` ကို Production fix အဖြစ် မသုံးပါနှင့်။ Container ကသုံးသော UID/GID
+နှင့် Current ownership ကိုအရင်စစ်ပြီး လိုအပ်သော Directory ကိုသာ ownership/
+minimum permission ပြင်ပါ။
 
 ```bash
-sudo chmod -R 777 ./authentik_media ./authentik_certs ./authentik_custom_templates
-docker restart authentik-server authentik-worker
+ls -ld ./authentik_media ./authentik_certs ./authentik_custom_templates
+docker compose -f docker-compose.authentik.yml logs authentik-server authentik-worker
 ```
 
----
+ပြင်ပြီးနောက်—
 
-## Additional Commands
+```bash
+docker compose -f docker-compose.authentik.yml restart authentik-server authentik-worker
+```
 
-### Stopping Authentik
-To stop the stack without losing data:
+## Stop နှင့် Remove
+
+Data မဖျက်ဘဲ Stop—
 
 ```bash
 docker compose -f docker-compose.authentik.yml stop
 ```
 
-### Tearing Down Authentik
-To remove the containers (your database data will persist in Docker volumes unless you add the `-v` flag):
+Containers ဖယ်ရှားသော်လည်း Named Volumes ထားရန်—
 
 ```bash
 docker compose -f docker-compose.authentik.yml down
 ```
+
+`down -v` သည် Database volumes ကိုဖျက်သော destructive command ဖြစ်သောကြောင့်
+Verified Backup နှင့် Explicit approval မရှိဘဲ မသုံးပါနှင့်။

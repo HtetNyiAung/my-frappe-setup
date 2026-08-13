@@ -1,27 +1,38 @@
 # Backup Script (`backup.sh`)
 
-> **Full guide:** [Backup Automation Guide](backup-automation-guide.md) — local backup, cron schedule, retention, and Google Drive offsite setup.
+> **အသေးစိတ်လမ်းညွှန်:** [Backup Automation လမ်းညွှန်](backup-automation-guide.md) တွင် local Backup၊ cron schedule၊ retention နှင့် Google Drive offsite setup ကို ဖတ်ပါ။
 
-The `backup.sh` script is a crucial utility for production environments. It triggers an internal Frappe backup and copies the resulting files to the host machine for safe keeping.
+`backup.sh` သည် Production environment အတွက် အရေးကြီးသော utility ဖြစ်သည်။
+၎င်းသည် Frappe container အတွင်း Backup ဖန်တီးပြီး သိမ်းဆည်းရန် host machine
+သို့ ကူးယူပေးသည်။
 
-## What it does
+## ဘာတွေလုပ်ပေးသလဲ
 
-1.  **Bench Backup**: Executes the `bench backup --with-files` command inside the Frappe backend container. This creates:
-    -   A SQL dump of the database.
-    -   A compressed archive of public and private files.
-2.  **Verification and Host Extraction**: Identifies the latest complete backup set, verifies its database, public files, private files, and site configuration files, then copies only that set to the host.
-3.  **Timestamping**: Organizes backups into directories named with the date and time (`YYYY-MM-DD_HH-MM-SS`) inside a `./backups/` folder.
-4.  **Retention**: After the host copy is verified, uses each timestamp folder name (`YYYY-MM-DD_HH-MM-SS`) to delete host backups older than `BACKUP_RETENTION_DAYS` (default `14`) and keeps the latest `CONTAINER_BACKUP_KEEP_COUNT` complete sets (default `3`) inside the container.
-5.  **Optional S3 Upload**: If both `S3_STORAGE_ENABLED=true` and `S3_BACKUP_UPLOAD_ENABLED=true`, uploads the verified backup set to the private S3 backup bucket and verifies each uploaded object size.
+1. **Bench Backup** — Frappe backend container ထဲတွင်
+   `bench backup --with-files` ကို run ပြီး အောက်ပါတို့ကို ဖန်တီးသည်။
+   - Database SQL dump
+   - Public files နှင့် private files archive
+2. **Verification နှင့် host သို့ကူးယူခြင်း** — နောက်ဆုံးပြည့်စုံသော Backup set
+   ကိုရှာပြီး Database၊ public files၊ private files နှင့် site configuration
+   files ရှိကြောင်း စစ်ဆေးကာ ထို set ကိုသာ host သို့ ကူးသည်။
+3. **Timestamp** — `./backups/` အောက်တွင် `YYYY-MM-DD_HH-MM-SS` အမည်ဖြင့်
+   folder ခွဲသိမ်းသည်။
+4. **Retention** — Host copy မှန်ကန်ကြောင်းစစ်ပြီးနောက်
+   `BACKUP_RETENTION_DAYS` (default `14`) ထက်ဟောင်းသော host Backup များကို
+   ဖျက်သည်။ Container အတွင်း နောက်ဆုံးပြည့်စုံသော set
+   `CONTAINER_BACKUP_KEEP_COUNT` (default `3`) ခုကို ထိန်းသိမ်းသည်။
+5. **Optional S3 Upload** — `S3_STORAGE_ENABLED=true` နှင့်
+   `S3_BACKUP_UPLOAD_ENABLED=true` နှစ်ခုစလုံးဖြစ်ပါက private S3 Backup Bucket
+   သို့ upload လုပ်ပြီး object တစ်ခုချင်း၏ size ကို စစ်ဆေးသည်။
 
-Configure retention in `.env`:
+`.env` တွင် retention ကို သတ်မှတ်ပါ။
 
 ```env
 BACKUP_RETENTION_DAYS=14
 CONTAINER_BACKUP_KEEP_COUNT=3
 ```
 
-Configure S3 backup upload in `.env`:
+S3 Backup upload ကို `.env` တွင် သတ်မှတ်ပါ။
 
 ```env
 S3_STORAGE_ENABLED=true
@@ -31,31 +42,34 @@ S3_BACKUP_PREFIX=frappe-backups
 S3_BACKUP_RETENTION_DAYS=30
 ```
 
-Use a dedicated private bucket for backups. Do not store database backups in
-the public or attachment buckets.
+Backup အတွက် သီးခြား private Bucket ကိုသာ သုံးပါ။ Database Backup ကို public
+Bucket သို့မဟုတ် attachment Bucket ထဲ မသိမ်းပါနှင့်။
 
-## Usage
+## အသုံးပြုပုံ
 
 ```bash
 chmod +x backup.sh
 ./backup.sh
 ```
 
-Manual runs show the target site and require typing `BACKUP` before any backup
-starts. For trusted non-interactive automation such as cron, use:
+Manual run တွင် target site ကိုပြပြီး Backup မစတင်မီ `BACKUP` ဟု
+အတည်ပြုခိုင်းသည်။ cron ကဲ့သို့ ယုံကြည်ရသော non-interactive Automation အတွက်—
 
 ```bash
 ./backup.sh --yes
 ```
 
-## Output Location
+## Backup သိမ်းသည့်နေရာ
 
-Backups are saved locally at:
-`./docker-setup/backups/[TIMESTAMP]/`
+```text
+./docker-setup/backups/[TIMESTAMP]/
+```
 
-## Why use this?
+## ဘာကြောင့်လိုအပ်သလဲ
 
-While Docker volumes store your data, they are not a substitute for proper backups. This script ensures you have actual files and database dumps that can be:
--   Moved to an off-site storage (S3, Dropbox, etc.).
--   Used to restore the site on a completely different server using `restore.sh`.
--   Versioned or archived for long-term data safety.
+Docker volume သည် Backup အစားထိုးမဟုတ်ပါ။ ဒီ Script ဖြင့် ရရှိသော Database
+dump နှင့် file archive များကို—
+
+- Offsite storage (S3, Google Drive စသည်) သို့ ရွှေ့နိုင်သည်။
+- `restore.sh` ဖြင့် တခြား server တွင် Site ပြန်တင်နိုင်သည်။
+- ရေရှည် data protection အတွက် version ခွဲသိမ်းနိုင်သည်။

@@ -1,18 +1,18 @@
-# Application Deployment Guide
+# Application Deployment လမ်းညွှန်
 
-Use `deploy.sh` for normal code releases after the site has been created by
-`setup.sh`. Run all commands from `docker-setup/`.
+`setup.sh` ဖြင့် Site ဖန်တီးပြီးနောက် ပုံမှန် Code Release အတွက် `deploy.sh`
+ကို အသုံးပြုပါ။ Command အားလုံးကို `docker-setup/` မှ run ပါ။
 
-## Command Summary
+## Commands
 
-| Command | Changes state? | Purpose |
+| Command | State ပြောင်းမလား | ရည်ရွယ်ချက် |
 |---|---:|---|
-| `./deploy.sh check` | No | Validate `.env`, `apps.json`, Git access, Compose, services, site, and database access. |
-| `./deploy.sh plan` | No | Display observed remote branch/tag revisions and the deployment sequence. |
-| `./deploy.sh apply` | Yes | Build, back up, deploy, migrate, clear caches, restart, and verify. |
-| `./deploy.sh verify` | No | Verify services, site availability, and database access. |
+| `./deploy.sh check` | မပြောင်းပါ | `.env`, `apps.json`, Git access, Compose, Services, Site နှင့် Database access စစ်သည်။ |
+| `./deploy.sh plan` | မပြောင်းပါ | Remote Branch/Tag revisions နှင့် Deployment sequence ပြသည်။ |
+| `./deploy.sh apply` | ပြောင်းသည် | Build, Backup, Deploy, Migrate, Cache clear, Restart နှင့် Verify လုပ်သည်။ |
+| `./deploy.sh verify` | မပြောင်းပါ | Services, Site availability နှင့် Database access စစ်သည်။ |
 
-Recommended release sequence:
+အကြံပြုအစဉ်—
 
 ```bash
 ./deploy.sh check
@@ -21,42 +21,39 @@ Recommended release sequence:
 ./deploy.sh verify
 ```
 
-`apply` requires typing `DEPLOY`. Trusted CI or automation may use:
+`apply` တွင် `DEPLOY` ဟု အတည်ပြုရသည်။ ယုံကြည်ရသော CI/Automation အတွက်—
 
 ```bash
 ./deploy.sh apply --yes
 ```
 
-## What `apply` Does
+## `apply` လုပ်ဆောင်ပုံ
 
-1. Validates Docker, Compose, the existing site, database access, and every
-   configured Git branch or tag.
-2. Resolves and records the observed remote commit for each `apps.json` entry.
-3. Builds a candidate image while the current containers remain running.
-4. Enables Frappe Maintenance Mode and stops scheduler/queue workers.
-5. Runs `backup.sh --yes`. Deployment stops if the verified backup fails.
-6. Synchronizes host-mounted custom apps to their configured branches.
-7. Keeps the previous image under a timestamped `-rollback-...` tag and makes
-   the candidate the configured `CUSTOM_IMAGE`.
-8. Recreates application services, installs any newly configured app, and runs
-   `bench migrate` exactly once as a required step.
-9. Clears site and website caches and recreates the remaining Frappe services.
-10. Verifies the services and database connection before disabling Maintenance
-    Mode.
-11. Writes a source revision record under `logs/releases/`.
+1. Docker, Compose, Existing Site, Database access နှင့် Git Branch/Tag
+   တစ်ခုချင်းကို စစ်သည်။
+2. `apps.json` entry တစ်ခုချင်း၏ Remote Commit ကို မှတ်တမ်းတင်သည်။
+3. လက်ရှိ Containers များကို run ထားစဉ် Candidate image ကို Build လုပ်သည်။
+4. Maintenance Mode ဖွင့်ပြီး Scheduler/Queue Workers ကို ရပ်သည်။
+5. `backup.sh --yes` run သည်။ Verified Backup မအောင်မြင်ပါက ရပ်သည်။
+6. Host-mounted Custom Apps များကို သတ်မှတ် Branch နှင့် Sync လုပ်သည်။
+7. Previous image ကို timestamp ပါ `-rollback-...` Tag ဖြင့်ထားပြီး Candidate
+   ကို `CUSTOM_IMAGE` အဖြစ် သတ်မှတ်သည်။
+8. Application Services ပြန်ဖန်တီး၍ App အသစ် Install လုပ်ပြီး `bench migrate`
+   ကို တစ်ကြိမ်သာ run သည်။
+9. Site/Website Cache ရှင်းပြီး ကျန် Services များကို ပြန်ဖန်တီးသည်။
+10. Services နှင့် Database connection အောင်မြင်မှ Maintenance Mode ပိတ်သည်။
+11. Source revisions ကို `logs/releases/` အောက်တွင် မှတ်တမ်းတင်သည်။
 
-## Failure Behaviour
+## မအောင်မြင်သည့်အခါ
 
-- A Git access or image-build failure happens before Maintenance Mode and does
-  not recreate the running containers.
-- A backup failure stops deployment before the new image is activated.
-- A sync, service, migration, or verification failure leaves Maintenance Mode
-  enabled. Background writers may also remain stopped.
-- The script does not automatically restore a database after migration starts.
-  Schema rollback must be a deliberate recovery decision based on the matching
-  code image and verified backup.
-
-Inspect a failed release with:
+- Git access/Image build failure သည် Maintenance Mode မဖွင့်မီဖြစ်၍ Running
+  Containers မပြောင်းပါ။
+- Backup failure ဖြစ်ပါက New image မဖွင့်မီ ရပ်သည်။
+- Sync, Service, Migration သို့မဟုတ် Verification failure ဖြစ်ပါက Maintenance
+  Mode ဖွင့်ထားနိုင်ပြီး Writers များလည်း ရပ်နေနိုင်သည်။
+- Migration စပြီးနောက် Database ကို အလိုအလျောက် Restore မလုပ်ပါ။ Schema
+  Rollback သည် Matching Code image နှင့် Verified Backup ကိုအခြေခံသည့်
+  ရည်ရွယ်ချက်ရှိသော Recovery decision ဖြစ်ရမည်။
 
 ```bash
 ./ops.sh status
@@ -64,17 +61,15 @@ Inspect a failed release with:
 ./ops.sh logs scheduler
 ```
 
-After correcting and verifying the problem, explicitly disable Maintenance
-Mode:
+ပြဿနာပြင်ပြီး Verification အောင်မြင်မှ—
 
 ```bash
 ./ops.sh maintenance-off
 ```
 
-If the previous image is required, first identify the timestamped rollback tag,
-retag it as `CUSTOM_IMAGE`, recreate the Frappe services, and run verification.
-Do this only with code/database compatibility confirmed; host-mounted custom
-apps must also be returned to their recorded revisions:
+Previous image ပြန်သုံးရန် Timestamped Rollback Tag ကိုအရင်စစ်ပြီး Code/Database
+compatibility သေချာမှသာ Retag/Recreate လုပ်ပါ။ Host-mounted Apps များကိုလည်း
+မှတ်တမ်းရှိ Commit များသို့ ပြန်ထားရမည်။
 
 ```bash
 docker image ls
@@ -87,17 +82,17 @@ docker compose -f <COMPOSE_FILE> -f docker-compose.override.yml up -d \
 
 ## Private GitHub Apps
 
-Use clean repository URLs in `apps.json`, set `"private": true`, and store the
-fine-grained read-only token only in the ignored `.env` file as
-`GITHUB_TOKEN`. The deployment script disables interactive Git credential
-prompts, validates access before the build, redacts the token from build output,
-and deletes its temporary authenticated file.
+`apps.json` တွင် Clean repository URL နှင့် `"private": true` သုံးပြီး
+Fine-grained read-only token ကို Git က ignore လုပ်ထားသော `.env` ရှိ
+`GITHUB_TOKEN` တွင်သာ သိမ်းပါ။ Script သည် Interactive credential prompt ကို
+ပိတ်ပြီး Access စစ်ခြင်း၊ Build output မှ Token ဖုံးကွယ်ခြင်းနှင့် Temporary
+authenticated file ဖျက်ခြင်းတို့ကို လုပ်သည်။
 
-## Important Boundaries
+## လုပ်ဆောင်ချက်နယ်ပယ်
 
-- `deploy.sh` deploys code to an existing site. It does not create a site.
-- `setup.sh` is for first installation or explicit infrastructure
-  reconfiguration.
-- `production.sh` applies production security/runtime settings; it is not the
-  normal application release command.
-- `backup.sh` and `restore.sh` remain separate data-management tools.
+- `deploy.sh` သည် Existing Site ကို Code Deploy လုပ်သည်။ Site အသစ်မဖန်တီးပါ။
+- `setup.sh` သည် First Installation/Explicit Infrastructure Reconfiguration
+  အတွက်ဖြစ်သည်။
+- `production.sh` သည် Production security/runtime settings ကို apply လုပ်ပြီး
+  ပုံမှန် Release command မဟုတ်ပါ။
+- `backup.sh` နှင့် `restore.sh` သည် သီးခြား Data-management tools ဖြစ်သည်။

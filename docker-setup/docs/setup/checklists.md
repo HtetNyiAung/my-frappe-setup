@@ -1,56 +1,36 @@
 # Frappe LMS Hosting Checklists
 
-Use these checklists before, during, and after hosting the LMS on a real domain.
+LMS ကို Domain အမှန်ဖြင့် Host မလုပ်မီ၊ လုပ်နေစဉ်နှင့် Go-Live မလုပ်မီ
+အောက်ပါ Checklists များကို အသုံးပြုပါ။
 
-## 1. Server Checklist
+## 1. Server
 
-- [ ] Ubuntu server is ready.
-- [ ] Server has at least 2 CPU cores.
-- [ ] Server has at least 4 GB RAM. 8 GB is recommended.
-- [ ] Server has at least 40 GB disk space.
-- [ ] SSH access is working.
-- [ ] Firewall allows HTTP and HTTPS.
-- [ ] Docker is installed.
-- [ ] Docker Compose plugin is installed.
-- [ ] Git is installed.
-- [ ] `jq` is installed.
-- [ ] Nginx is installed.
-- [ ] Certbot is installed.
+- [ ] Ubuntu server အဆင်သင့်ဖြစ်သည်။
+- [ ] အနည်းဆုံး 2 CPU cores, 4 GB RAM (8 GB recommended), 40 GB Disk ရှိသည်။
+- [ ] SSH access အလုပ်လုပ်သည်။
+- [ ] Firewall တွင် HTTP/HTTPS ကို လိုအပ်သည့် source များအတွက် ဖွင့်ထားသည်။
+- [ ] Docker, Docker Compose plugin, Git နှင့် `jq` install လုပ်ထားသည်။
+- [ ] Reverse Proxy သုံးပါက Nginx နှင့် Certbot install လုပ်ထားသည်။
 
-## 2. Domain Checklist
+## 2. Domain နှင့် DNS
 
-- [ ] Domain name is purchased.
-- [ ] LMS subdomain is chosen, for example `lms.example.com`.
-- [ ] DNS `A` record points to the server IP.
-- [ ] DNS propagation is complete.
-- [ ] Domain opens the server in browser.
+- [ ] Domain နှင့် LMS subdomain ရွေးထားသည်၊ ဥပမာ `lms.example.com`။
+- [ ] DNS `A` record သည် App Server public IP ကိုညွှန်သည်။
+- [ ] DNS propagation ပြီးပြီး Browser မှ Domain ရောက်နိုင်သည်။
 
-## 3. Environment Checklist
+## 3. Environment
 
-- [ ] `.env` file is created from `.env.example`.
-- [ ] `PUBLIC_URL` is set to the real HTTPS domain.
-- [ ] `FRAPPE_PORT` is set.
-- [ ] `BIND_ADDRESS` is set to `127.0.0.1` when using Nginx reverse proxy.
-- [ ] `MYSQL_ROOT_PASSWORD` is changed from default.
-- [ ] `MARIADB_ROOT_PASSWORD` is changed from default.
-- [ ] `ADMIN_PASSWORD` is changed from default.
-- [ ] `SITE_DOMAIN` is set correctly.
-- [ ] `CUSTOM_IMAGE` name is correct.
-- [ ] `apps.json` contains the required apps.
+- [ ] `.env.example` မှ `.env` ဖန်တီးထားသည်။
+- [ ] `PUBLIC_URL` သည် HTTPS Domain အမှန်ဖြစ်သည်။
+- [ ] `FRAPPE_PORT` မှန်သည်။
+- [ ] Nginx Reverse Proxy သုံးပါက `BIND_ADDRESS=127.0.0.1` ဖြစ်သည်။
+- [ ] `MYSQL_ROOT_PASSWORD`, `MARIADB_ROOT_PASSWORD`, `ADMIN_PASSWORD` နှင့်
+  တခြား Secret များကို strong values ပြောင်းထားသည်။
+- [ ] `SITE_DOMAIN`, `CUSTOM_IMAGE` နှင့် `apps.json` မှန်သည်။
+- [ ] Local/External Database configuration ကို ရွေးပြီး network test
+  အောင်မြင်သည်။
 
-## 4. Deployment Checklist
-
-- [ ] Project files are copied or cloned to the server.
-- [ ] Scripts are executable.
-- [ ] Docker image builds successfully.
-- [ ] Frappe containers start successfully.
-- [ ] Site is created successfully.
-- [ ] Required apps are installed successfully.
-- [ ] Migration completes successfully.
-- [ ] LMS opens using server IP and port.
-- [ ] Administrator login works.
-
-Run:
+## 4. ပထမဆုံး Setup
 
 ```bash
 cd docker-setup
@@ -58,127 +38,96 @@ chmod +x setup.sh deploy.sh ops.sh backup.sh restore.sh logs.sh cleanup.sh
 ./setup.sh
 ```
 
-Verify:
+- [ ] Docker image build အောင်မြင်သည်။
+- [ ] Frappe containers များ healthy/running ဖြစ်သည်။
+- [ ] Site ဖန်တီးပြီး Required Apps install အောင်မြင်သည်။
+- [ ] Migration အောင်မြင်သည်။
+- [ ] Administrator Login ဝင်နိုင်သည်။
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml ps
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend bench --site frontend list-apps
 ```
 
-## 5. Nginx And SSL Checklist
+`frontend` ကို မိမိ `SITE_DOMAIN` ဖြင့်ပြောင်းပါ။
 
-- [ ] Nginx reverse proxy config is created.
-- [ ] `proxy_pass` points to the local Frappe port.
-- [ ] Nginx config test passes.
-- [ ] Nginx restarts successfully.
-- [ ] SSL certificate is issued with Certbot.
-- [ ] HTTPS opens correctly.
-- [ ] HTTP redirects to HTTPS.
-- [ ] File upload works over HTTPS.
+## 5. Nginx နှင့် SSL
 
-Example SSL command:
+- [ ] Nginx Reverse Proxy config ဖန်တီးထားသည်။
+- [ ] `proxy_pass` သည် Local Frappe port ကိုညွှန်သည်။
+- [ ] Nginx config test နှင့် reload အောင်မြင်သည်။
+- [ ] Certbot ဖြင့် SSL Certificate ထုတ်ပြီး HTTPS အလုပ်လုပ်သည်။
+- [ ] HTTP မှ HTTPS သို့ Redirect ဖြစ်သည်။
+- [ ] HTTPS မှ File upload စမ်းသပ်ပြီးဖြစ်သည်။
 
 ```bash
 sudo certbot --nginx -d lms.example.com
 ```
 
-## 6. LMS Setup Checklist
+## 6. LMS Configuration
 
-- [ ] Site branding is updated.
-- [ ] System language is checked.
-- [ ] Time zone is checked.
-- [ ] Admin email is changed from default.
-- [ ] Outbound email configured (Gmail or Outlook) — [email-outlook-setup-guide.md](../integrations/email-outlook-setup-guide.md).
-- [ ] Test email sent from **Email Account** (Send Test Email).
-- [ ] Forgot password email tested on login page.
-- [ ] Instructor accounts are created.
-- [ ] Learner accounts are created or invited.
-- [ ] Courses are created.
-- [ ] Lessons are created.
-- [ ] PDFs are uploaded and tested.
-- [ ] Programs are created if needed.
-- [ ] Members are added to programs.
-- [ ] Course progress tracking is tested.
-- [ ] Learner login is tested.
+- [ ] Branding, System Language, Timezone နှင့် Admin email မှန်သည်။
+- [ ] Outbound Email ပြင်ပြီး **Send Test Email** အောင်မြင်သည်။
+- [ ] Login page မှ Forgot Password email စမ်းပြီးဖြစ်သည်။
+- [ ] Instructor နှင့် Learner accounts များဖန်တီးထားသည်။
+- [ ] Course, Lesson, Program နှင့် Enrollment workflow စမ်းပြီးဖြစ်သည်။
+- [ ] Progress tracking နှင့် Certificate စမ်းပြီးဖြစ်သည်။
+- [ ] Learner Role ဖြင့် Permission စမ်းပြီးဖြစ်သည်။
 
-## 7. PDF Lesson Checklist
+Email အတွက် [Outlook/Email Setup လမ်းညွှန်](../integrations/email-outlook-setup-guide.md)
+ကို ကြည့်ပါ။
 
-- [ ] PDF file is uploaded in Attachments.
-- [ ] File URL is copied.
-- [ ] Download link is added to learner-facing Content or Body.
-- [ ] PDF opens as a learner.
-- [ ] Private PDF permissions are tested.
-- [ ] Public PDF access is tested if using `/files/`.
-- [ ] File name is clear and readable.
+## 7. PDF နှင့် Attachments
 
-## 8. Backup Checklist
+- [ ] PDF ကို Attachment အဖြစ် Upload လုပ်ထားသည်။
+- [ ] Learner မြင်ရမည့် Content တွင် မှန်ကန်သော Link ထည့်ထားသည်။
+- [ ] Learner account ဖြင့် PDF ဖွင့်/Download စမ်းပြီးဖြစ်သည်။
+- [ ] Private file Permission နှင့် Public file access ကို သီးခြားစမ်းထားသည်။
+- [ ] File name သည် ဖတ်ရှုရလွယ်ကူသည်။
 
-> Full setup: [Backup Automation Guide](../operations/backup-automation-guide.md) — cron, retention, Google Drive offsite.
+## 8. Backup နှင့် Restore
 
-- [ ] Backup script runs successfully.
-- [ ] Database backup is created.
-- [ ] Public files backup is created.
-- [ ] Private files backup is created.
-- [ ] `BACKUP_RETENTION_DAYS` is set in `.env`.
-- [ ] Cron job is configured for nightly `backup.sh` (if using scheduled local backup).
-- [ ] Google Drive offsite backup is authorized in Frappe (if using cloud copy).
-- [ ] Backup folder is copied outside the server (or Google Drive upload verified).
-- [ ] Restore process is tested on a test server.
-
-Run:
+- [ ] `./backup.sh` အောင်မြင်ပြီး Database/public/private files ရှိသည်။
+- [ ] `.env` တွင် `BACKUP_RETENTION_DAYS` သတ်မှတ်ထားသည်။
+- [ ] Scheduled Backup သုံးပါက cron run နှင့် Logs ကိုစစ်ပြီးဖြစ်သည်။
+- [ ] Offsite Backup သို့မဟုတ် Server ပြင်ပ copy ရှိသည်။
+- [ ] Test Server ပေါ်တွင် Restore စမ်းသပ်ပြီးဖြစ်သည်။
 
 ```bash
 cd docker-setup
 ./backup.sh
 ```
 
-## 9. Maintenance Checklist
+အသေးစိတ်ကို [Backup Automation လမ်းညွှန်](../operations/backup-automation-guide.md)
+တွင် ဖတ်ပါ။
 
-- [ ] Check container health weekly.
-- [ ] Check disk usage weekly.
-- [ ] Check logs when users report issues.
-- [ ] Run backups before updates.
-- [ ] Update only after backup is complete.
-- [ ] Test login after update.
-- [ ] Test course lesson page after update.
-- [ ] Test PDF downloads after update.
+## 9. Maintenance
 
-Useful commands:
+- [ ] Container health နှင့် Disk usage ကို အပတ်စဉ်စစ်သည်။
+- [ ] User error တင်ပြလာလျှင် Logs စစ်သည်။
+- [ ] Update မတိုင်မီ Verified Backup ရှိသည်။
+- [ ] Update ပြီးလျှင် Login, Course, Lesson, PDF နှင့် Background jobs စမ်းသည်။
 
 ```bash
 cd docker-setup
-./logs.sh
-./cleanup.sh
+./ops.sh status
+./ops.sh logs
 ./deploy.sh check
 ./deploy.sh plan
 ./deploy.sh apply
-./ops.sh status
 ```
 
-## 10. Go-Live Checklist
+`cleanup.sh` သည် Data volumes ကိုဖျက်နိုင်သော destructive Script ဖြစ်သောကြောင့်
+Maintenance command အဖြစ် မသုံးပါနှင့်။
 
-- [ ] HTTPS domain is working.
-- [ ] Admin password is secure.
-- [ ] Test learner account is working.
-- [ ] Test instructor account is working.
-- [ ] Course content is visible to learners.
-- [ ] Program members can access assigned programs.
-- [ ] PDF downloads work.
-- [ ] Outbound email and password reset tested — [email-outlook-setup-guide.md](../integrations/email-outlook-setup-guide.md).
-- [ ] Backup is completed.
-- [ ] Restore procedure is known.
-- [ ] Support contact is ready for users.
+## 10. Go-Live
 
-## Myanmar Quick Notes
-
-- Server Checklist = Server ပြင်ဆင်ပြီးပြီလား စစ်ရန်။
-- Domain Checklist = Domain/DNS မှန်လား စစ်ရန်။
-- Environment Checklist = `.env` configuration မှန်လား စစ်ရန်။
-- Deployment Checklist = Frappe LMS run ဖြစ်လား စစ်ရန်။
-- Nginx And SSL Checklist = HTTPS domain အတွက် စစ်ရန်။
-- LMS Setup Checklist = Course, lesson, learner setup စစ်ရန်။
-- Email Checklist = Gmail သို့မဟုတ် Outlook SMTP + forgot password စစ်ရန် ([guide](../integrations/email-outlook-setup-guide.md))။
-- PDF Lesson Checklist = Learner PDF download လုပ်နိုင်လား စစ်ရန်။
-- Backup Checklist = Data backup ရှိလား စစ်ရန်။
-- Maintenance Checklist = Hosting ပြီးနောက် ပုံမှန်ထိန်းသိမ်းရန်။
-- Go-Live Checklist = User တွေကိုအသုံးပြုခိုင်းမီ နောက်ဆုံးစစ်ရန်။
+- [ ] HTTPS Domain အလုပ်လုပ်သည်။
+- [ ] Default password/Secret မရှိတော့ပါ။
+- [ ] Test Administrator, Instructor နှင့် Learner accounts အလုပ်လုပ်သည်။
+- [ ] Course access, Enrollment, Progress, Certificate နှင့် PDF Download
+  အလုပ်လုပ်သည်။
+- [ ] Outbound Email နှင့် Password Reset အလုပ်လုပ်သည်။
+- [ ] Verified Local/Offsite Backup ရှိပြီး Restore procedure ကို Operator
+  နားလည်သည်။
+- [ ] Monitoring နှင့် Support contact သတ်မှတ်ထားသည်။

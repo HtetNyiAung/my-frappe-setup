@@ -1,51 +1,47 @@
-# Backup Automation Guide
+# Backup Automation လမ်းညွှန်
 
-Complete guide for protecting your Frappe site with **local backups**, **scheduled runs**, **retention**, and **offsite Google Drive** copies.
+Frappe site ကို **Local Backup**, **Scheduled Backup**, **Retention** နှင့်
+**Offsite Google Drive Backup** တို့ဖြင့် ကာကွယ်ရန် လမ်းညွှန်ဖြစ်သည်။
 
-Use this together with:
+ဆက်စပ်ဖိုင်များ—
 
-- [`backup.sh`](../../backup.sh) — local backup script
-- [`restore.sh`](../../restore.sh) — restore from a backup folder
-- [`backup.md`](backup.md) — short reference for `backup.sh`
+- [`backup.sh`](../../backup.sh) — Local Backup Script
+- [`restore.sh`](../../restore.sh) — Backup folder မှ Restore လုပ်ရန်
+- [`backup.md`](backup.md) — `backup.sh` အကျဉ်းချုပ်
 
----
+## Backup အလွှာများ
 
-## Overview
+| အလွှာ | Data | နေရာ | ရည်ရွယ်ချက် |
+|---|---|---|---|
+| 1. Live data | Docker volumes | Server | နေ့စဉ်လုပ်ငန်းသုံး Data |
+| 2. Local Backup | `backup.sh` | Host ရှိ `./backups/` | Server တူတွင် မြန်မြန် Restore လုပ်ရန် |
+| 3. Offsite Backup | Frappe Google Drive | Google Drive | Server ပျက်စီးလျှင် ပြန်ယူရန် |
 
-| Layer | What | Where | Purpose |
-|-------|------|-------|---------|
-| **1. Live data** | Docker volumes | Server | Day-to-day operation |
-| **2. Local backup** | `backup.sh` | `./backups/` on host | Fast restore on same server |
-| **3. Offsite backup** | Frappe Google Drive | Google Cloud | Survives server loss |
+ဖြစ်နိုင်လျှင် **3-2-1 rule** ကို လိုက်နာပါ—Data copy 3 ခု၊ Storage အမျိုးအစား
+2 မျိုးနှင့် Offsite copy 1 ခုထားပါ။ Docker volume တစ်ခုတည်းကို Backup ဟု
+မယူဆပါနှင့်။
 
-Follow the **3-2-1 rule**:
+## Layer 1 — Local Backup (`backup.sh`)
 
-- **3** copies of your data
-- **2** different storage types (disk + cloud)
-- **1** copy offsite (Google Drive)
+Script သည်—
 
-For ~3000 registered users with ~300 peak concurrent users, a single server with local + offsite backup is sufficient. Scaling is a separate topic; backup protects you regardless of user count.
+1. Backend container ထဲတွင် `bench --site <site> backup --with-files` ကို
+   run သည်။
+2. SQL၊ public files၊ private files နှင့် site configuration ပါသည့် နောက်ဆုံး
+   complete set ကိုစစ်ပြီး Host ရှိ
+   `./backups/YYYY-MM-DD_HH-MM-SS/backups/` သို့ ကူးသည်။
+3. `BACKUP_RETENTION_DAYS` ထက်ဟောင်းသော Host Backup folders များကို
+   ဖယ်ရှားပြီး Container ထဲတွင် နောက်ဆုံး complete sets
+   `CONTAINER_BACKUP_KEEP_COUNT` ခု ထားသည်။
 
----
-
-## Layer 1 — Local backup (`backup.sh`)
-
-### What it does
-
-1. Runs `bench --site <site> backup --with-files` inside the backend container.
-2. Verifies and copies the latest SQL, public files, private files, and site configuration backup to `./backups/YYYY-MM-DD_HH-MM-SS/backups/` on the host.
-3. Deletes host backup folders older than `BACKUP_RETENTION_DAYS` (default **14**) and keeps the latest `CONTAINER_BACKUP_KEEP_COUNT` complete sets in the container (default **3**).
-
-### Configuration
-
-In `.env`:
+`.env` configuration—
 
 ```env
 BACKUP_RETENTION_DAYS=14
 CONTAINER_BACKUP_KEEP_COUNT=3
 ```
 
-### Manual run
+Manual run—
 
 ```bash
 cd docker-setup
@@ -53,39 +49,28 @@ chmod +x backup.sh
 ./backup.sh
 ```
 
-Output:
+နမူနာ output folder—
 
+```text
+./backups/2026-06-29_02-00-00/
 ```
-./docker-setup/backups/2026-06-29_02-00-00/
-```
 
-### Retention behaviour
+Retention သည် Backup အသစ်အောင်မြင်ပြီး Host copy ကို စစ်ဆေးပြီးမှ run သည်။
+`YYYY-MM-DD_HH-MM-SS` format မမှန်သော folder ကို ကျော်ထားပြီး Frappe Backup
+တစ်ကြိမ်မှရသည့် ဖိုင်လေးခုကို complete set တစ်ခုအဖြစ် ကိုင်တွယ်သည်။
 
-- Only runs **after** a successful backup.
-- Verifies the host copy before deleting any old backup.
-- Uses the `YYYY-MM-DD_HH-MM-SS` folder timestamp and removes **entire timestamp folders** under `./backups/` older than the retention window.
-- Skips folders whose names are not valid backup timestamps.
-- Groups the four files created by one Frappe backup timestamp as one container backup set.
-- Folders with spaces in the name are handled safely.
-- Set `BACKUP_RETENTION_DAYS=14` (or any positive integer) in `.env` to change the window without editing the script.
-
-### Restore
-
-See [`restore.md`](restore.md).
+Restore လုပ်ရန် [Restore လမ်းညွှန်](restore.md) ကိုဖတ်ပါ။
 
 ```bash
 ./restore.sh ./backups/2026-06-29_02-00-00
 ```
 
----
+## Layer 2 — Cron ဖြင့် နေ့စဉ် Run ခြင်း
 
-## Layer 2 — Cron schedule (daily auto-run)
+cron သည် Linux Scheduler ဖြစ်ပြီး သတ်မှတ်ချိန်တွင် `backup.sh` ကို
+အလိုအလျောက် run ပေးသည်။
 
-Cron is the Linux scheduler. It runs `backup.sh` automatically at a fixed time so you do not rely on someone remembering to run it.
-
-### Timezone warning
-
-Check your server timezone first:
+### Timezone ကို အရင်စစ်ပါ
 
 ```bash
 timedatectl
@@ -93,16 +78,11 @@ timedatectl
 date
 ```
 
-If the server uses **UTC** (common on cloud VPS) and you want **Myanmar time 02:00** (UTC+6:30), schedule at **19:30 UTC** the previous calendar day — not `0 2 * * *`.
+Server timezone သည် UTC ဖြစ်ပြီး Myanmar time 02:00 (UTC+6:30) တွင် run
+လိုပါက အရင်နေ့ UTC 19:30 ဖြစ်သော `30 19 * * *` ကို သုံးရမည်။ Server timezone
+သည် Myanmar timezone ဖြစ်ပါက `0 2 * * *` ကို သုံးနိုင်သည်။
 
-| Desired run time | Server timezone | Cron expression |
-|------------------|-----------------|-----------------|
-| Myanmar 02:00 daily | UTC | `30 19 * * *` |
-| Server local 02:00 | Matches your zone | `0 2 * * *` |
-
-### Cron line format
-
-```
+```text
 ┌─ minute (0-59)
 │ ┌ hour (0-23)
 │ │ ┌ day of month
@@ -112,234 +92,155 @@ If the server uses **UTC** (common on cloud VPS) and you want **Myanmar time 02:
 0 2 * * *   command
 ```
 
-### Setup steps
-
-1. Use the **full path** to `backup.sh` (cron does not use your shell working directory).
-
-2. Log output to a file so failures are visible:
+Cron သည် shell ၏ လက်ရှိ folder ကိုမသိသောကြောင့် Script နှင့် Log အတွက်
+absolute path သုံးပါ။ `<project-path>` ကို Server အမှန်၏ path ဖြင့်ပြောင်းပါ။
 
 ```bash
 crontab -e
 ```
 
-Add one line (adjust path and time as needed):
-
 ```cron
-30 19 * * * /home/hnna/my-frappe-setup/docker-setup/backup.sh --yes >> /home/hnna/my-frappe-setup/docker-setup/backups/cron-backup.log 2>&1
+30 19 * * * <project-path>/docker-setup/backup.sh --yes >> <project-path>/docker-setup/backups/cron-backup.log 2>&1
 ```
 
-3. Verify:
+စစ်ဆေးရန်—
 
 ```bash
 crontab -l
 ```
 
-4. Ensure the cron user can run Docker (`docker exec` in `backup.sh`). On production, add the user to the `docker` group or run cron as root.
-
-### WSL2 note
-
-On **WSL2**, the cron daemon may not start automatically after reboot:
+Cron user သည် Docker command run နိုင်ရမည်။ Production တွင် လိုအပ်သော
+permission ကို အနည်းဆုံးအတိုင်းသာပေးပါ။ WSL2 တွင် reboot ပြီးလျှင် cron
+service ကို ကိုယ်တိုင်စတင်ရနိုင်သည်။
 
 ```bash
 sudo service cron start
 sudo service cron status
 ```
 
-On a real Linux production server, cron usually starts on boot.
+## Layer 3 — Google Drive Offsite Backup
 
-### What runs each night
+ဒီနည်းသည် Frappe ၏ built-in Google Drive Backup ကို အသုံးပြုသည်။ `rclone`,
+`aws-cli` သို့မဟုတ် Custom upload script မလိုပါ။ Admin Console မှ setup
+လုပ်ပြီး Frappe Scheduler က Daily upload ကို စီမံပေးသည်။
 
-```
-Cron triggers backup.sh
-        │
-        ▼
-  New folder in ./backups/
-        │
-        ▼
-  Retention deletes folders older than 7 days
-        │
-        ▼
-  Result appended to cron-backup.log
-```
+### လိုအပ်ချက်များ
 
----
+| လိုအပ်ချက် | မှတ်ချက် |
+|---|---|
+| System User | Admin Console (`/app`) ဝင်နိုင်သော Administrator |
+| Scheduler | `scheduler` service run နေရမည် |
+| Public HTTPS URL | `.env` ရှိ `PUBLIC_URL` နှင့်တူရမည် |
+| Google account | Drive ရှိ Backup folder ပိုင်ရှင် |
 
-## Layer 3 — Offsite backup (Frappe Google Drive)
+Stable HTTPS Production domain ပေါ်တွင် setup လုပ်ရန် အကြံပြုသည်။
 
-Frappe has **built-in Google Drive backup**. No `rclone`, `aws-cli`, or custom upload script is required for this option.
+### Google Cloud Console
 
-Recommended for this stack because:
+1. [Google Cloud Console](https://console.cloud.google.com/) တွင် Project
+   တစ်ခုဖန်တီးပါ။
+2. **APIs & Services → Library** မှ **Google Drive API** ကို Enable လုပ်ပါ။
+3. **APIs & Services → Credentials** တွင် **OAuth consent screen** ကို
+   ပြင်ဆင်ပါ။
+4. **Create Credentials → OAuth client ID** ကိုရွေးပြီး Application type ကို
+   **Web application** သတ်မှတ်ပါ။
+5. `<your-domain>` ကို မိမိ HTTPS domain ဖြင့်ပြောင်းကာ URL များထည့်ပါ။
 
-- Setup is done in the Admin Console UI.
-- Frappe scheduler handles daily uploads.
-- Works alongside `backup.sh` (local fast restore + cloud disaster recovery).
+Authorized JavaScript origin—
 
-### Prerequisites
-
-| Requirement | Notes |
-|-------------|-------|
-| **System User** | Administrator with Admin Console (`/app`) access |
-| **Scheduler running** | `scheduler` service in `pwd-with-apps.yml` must be up |
-| **Public HTTPS URL** | e.g. `https://lms.inyaland.com` from `PUBLIC_URL` in `.env` |
-| **Google account** | Account that will own the backup folder on Drive |
-
-> Prefer setting up Google Drive on your **production domain**, not `localhost:8787`. Google OAuth redirect URIs are easier with a stable HTTPS URL.
-
-### Part A — Google Cloud Console (one-time)
-
-1. Open [Google Cloud Console](https://console.cloud.google.com/).
-2. Create a project (e.g. `inyaland-backup`).
-3. **APIs & Services → Library** → enable **Google Drive API**.
-4. **APIs & Services → Credentials** → configure **OAuth consent screen** (External or Internal).
-5. **Create Credentials → OAuth client ID**:
-   - Application type: **Web application**
-   - Name: e.g. `Frappe Backup`
-6. Add authorized URLs (replace with your real domain):
-
-**Authorized JavaScript origins:**
-
-```
-https://lms.inyaland.com
+```text
+https://<your-domain>
 ```
 
-**Authorized redirect URIs:**
+Authorized redirect URI—
 
+```text
+https://<your-domain>/api/method/frappe.integrations.google_oauth.callback
 ```
-https://lms.inyaland.com/api/method/frappe.integrations.google_oauth.callback
-```
 
-7. Copy **Client ID** and **Client Secret**.
+6. **Client ID** နှင့် **Client Secret** ကို Secret storage တွင် သိမ်းပါ။ Git
+   ထဲ မထည့်ပါနှင့်။
 
-### Part B — Frappe Admin Console
+### Frappe Admin Console
 
-1. Log in to Admin Console: `https://lms.inyaland.com/app`
-2. Open **Google Settings** (search in Awesome Bar or **Integrations → Google Services → Google Settings**).
-3. Paste **Client ID** and **Client Secret** → **Save**.
-4. Open **Google Drive** (**Integrations → Google Services → Google Drive**).
-5. Click **New** and fill in:
+1. `https://<your-domain>/app` တွင် Login ဝင်ပါ။
+2. **Google Settings** ကိုဖွင့်ပြီး **Client ID** နှင့် **Client Secret**
+   ထည့်ကာ **Save** လုပ်ပါ။
+3. **Google Drive** ကိုဖွင့်ပြီး **New** နှိပ်ပါ။
+4. **Backup Folder Name**, **Frequency = Daily**, **Send Notification To**
+   တို့ကို ဖြည့်ပါ။
+5. **Save → Authorize Drive Access** နှိပ်၍ Google account ဖြင့် Allow လုပ်ပါ။
+6. **Take Backup** ဖြင့် စမ်းပြီး Drive folder ထဲတွင် ဖိုင်ရောက်ကြောင်း စစ်ပါ။
 
-| Field | Example |
-|-------|---------|
-| Backup Folder Name | `inyaland-backup` |
-| Frequency | **Daily** |
-| Send Notification To | `admin@example.com` |
-
-6. **Save** → click **Authorize Drive Access** → sign in with Google → **Allow**.
-7. Click **Take Backup** to test.
-8. Confirm files appear in Google Drive under your folder name.
-
-### How automatic offsite backup works
-
-| Trigger | Behaviour |
-|---------|-----------|
-| **Take Backup** button | Immediate backup + upload |
-| **Frequency = Daily** | Frappe scheduler uploads on schedule |
-| On completion | Email sent to **Send Notification To** |
-
-Ensure scheduler is running:
+Scheduler စစ်ရန်—
 
 ```bash
 docker ps | grep scheduler
 ```
 
-### Google Drive storage limits
+Google Drive quota ကို စောင့်ကြည့်ပါ။ Course media နှင့် file attachments များ
+လာသည်နှင့် Backup size မြန်မြန်ကြီးနိုင်သည်။
 
-- Free Google accounts: **15 GB** total Drive quota.
-- LMS course media can grow quickly; monitor usage.
-- If backups exceed **1 GB** compressed, Frappe may upload the latest existing backup instead of generating a new one (see Frappe docs).
+## ပြဿနာဖြေရှင်းခြင်း
 
-### Troubleshooting
+### `redirect_uri_mismatch`
 
-#### `redirect_uri_mismatch`
+- Google Console ရှိ Redirect URI သည် Public Site URL နှင့် အက္ခရာတိုင်း
+  တိတိကျကျ တူရမည်။
+- Production တွင် `https://` သုံးပါ။ မသုံးသော port မထည့်ပါနှင့်။
+- **System Settings → Site URL**, Site `host_name` နှင့် `PUBLIC_URL`
+  တူကြောင်း စစ်ပါ။
 
-- Redirect URI in Google Console must **exactly** match your public site URL.
-- Use `https://`, not `http://`.
-- Do not add wrong ports (e.g. `:8000`) unless your site is actually served on that port.
-- Confirm **System Settings → Site URL** and site `host_name` match `PUBLIC_URL`.
+### Automatic Backup မလုပ်ခြင်း
 
-#### Auto backup not running
+- [ ] `scheduler` container run နေသည်။
+- [ ] Google Drive record သည် **Authorized** ဖြစ်သည်။
+- [ ] **Frequency** သတ်မှတ်ထားသည်။
+- [ ] `./logs.sh` ဖြင့် Scheduler/Error Logs စစ်ပြီးဖြစ်သည်။
 
-- [ ] `scheduler` container is running
-- [ ] Google Drive record shows **Authorized**
-- [ ] **Frequency** is set (e.g. Daily)
-- [ ] Check scheduler / error logs: `./logs.sh`
-
-#### Backup works manually but not on schedule
-
-- Scheduler may be disabled inside the site. In the backend container:
+Manual Backup အောင်မြင်သော်လည်း Scheduled Backup မလုပ်ပါက—
 
 ```bash
 docker exec -it docker-setup-backend-1 bench --site frontend doctor
 ```
 
-Review scheduler status in Frappe documentation for your version.
+Container နှင့် Site အမည်ကို environment အမှန်နှင့်ကိုက်ညီအောင် ပြောင်းပါ။
 
----
+## Production Checklist
 
-## Recommended production setup
+### Local Backup
 
-Combine all three layers:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Nightly (cron)                                         │
-│  backup.sh → ./backups/ → retention (7 days)            │
-└─────────────────────────────────────────────────────────┘
-                          +
-┌─────────────────────────────────────────────────────────┐
-│  Daily (Frappe scheduler)                               │
-│  Google Drive → offsite copy on Google Cloud            │
-└─────────────────────────────────────────────────────────┘
-```
-
-| Scenario | Use |
-|----------|-----|
-| Quick restore on same server | Local `./backups/` + `restore.sh` |
-| Server disk failure / ransomware | Google Drive copy |
-| Long-term archive beyond 7 days | Google Drive (or extend retention + offsite) |
-
----
-
-## Checklist
-
-### Local backup
-
-- [ ] `backup.sh` is executable
-- [ ] `BACKUP_RETENTION_DAYS` set in `.env`
-- [ ] Manual `./backup.sh` run succeeded
-- [ ] Backup folder exists under `./backups/`
+- [ ] `backup.sh` executable ဖြစ်သည်။
+- [ ] `.env` တွင် `BACKUP_RETENTION_DAYS` သတ်မှတ်ထားသည်။
+- [ ] Manual `./backup.sh` အောင်မြင်သည်။
+- [ ] `./backups/` အောက်တွင် Complete Backup set ရှိသည်။
 
 ### Cron
 
-- [ ] Server timezone confirmed
-- [ ] Cron line uses full path to `backup.sh`
-- [ ] Log file path configured (`cron-backup.log`)
-- [ ] `crontab -l` shows the entry
-- [ ] Cron user can run `docker` commands
-- [ ] (WSL only) `cron` service is started
+- [ ] Server timezone စစ်ပြီးဖြစ်သည်။
+- [ ] Cron တွင် absolute path သုံးထားသည်။
+- [ ] `cron-backup.log` သတ်မှတ်ထားသည်။
+- [ ] `crontab -l` တွင် Entry တွေ့သည်။
+- [ ] Cron user သည် Docker command run နိုင်သည်။
 
-### Offsite (Google Drive)
+### Offsite Backup
 
-- [ ] Google Drive API enabled
-- [ ] OAuth redirect URI matches production domain
-- [ ] Google Settings saved in Frappe
-- [ ] Google Drive record authorized
-- [ ] **Take Backup** test succeeded
-- [ ] Files visible in Google Drive
-- [ ] Notification email received
-- [ ] `scheduler` container running
+- [ ] Google Drive API Enable လုပ်ထားသည်။
+- [ ] OAuth redirect URI သည် Production domain နှင့်တူသည်။
+- [ ] Google Settings သိမ်းပြီး Drive record Authorized ဖြစ်သည်။
+- [ ] **Take Backup** စမ်းသပ်မှုအောင်မြင်သည်။
+- [ ] Google Drive တွင် ဖိုင်ရောက်ပြီး Notification email ရသည်။
+- [ ] `scheduler` container run နေသည်။
 
-### Security
+### Security နှင့် Recovery
 
-- [ ] Default passwords changed in `.env`
-- [ ] `PUBLIC_URL` uses HTTPS
-- [ ] Google Client Secret not committed to git
-- [ ] Restore tested at least once on a non-production copy (monthly recommended)
+- [ ] Default passwords မသုံးပါ။
+- [ ] `PUBLIC_URL` သည် HTTPS ဖြစ်သည်။
+- [ ] Google Client Secret ကို Git မထည့်ထားပါ။
+- [ ] Non-production copy တွင် Restore စမ်းသပ်ပြီးဖြစ်သည်။
 
----
+## ဆက်စပ်လမ်းညွှန်များ
 
-## Related docs
-
-- [`backup.md`](backup.md) — `backup.sh` quick reference
-- [`restore.md`](restore.md) — restore procedure
-- [`checklists.md`](../setup/checklists.md) — production hosting checklist
+- [Backup အကျဉ်းချုပ်](backup.md)
+- [Restore လုပ်နည်း](restore.md)
+- [Hosting Checklists](../setup/checklists.md)

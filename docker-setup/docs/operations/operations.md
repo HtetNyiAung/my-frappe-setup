@@ -1,9 +1,10 @@
-# Runtime Operations Guide
+# Runtime Operations လမ်းညွှန်
 
-Use `ops.sh` for day-to-day operations on an existing stack. It reads `.env`
-and automatically includes `docker-compose.override.yml` when present.
+ရှိပြီးသား stack ကို နေ့စဉ်စီမံရန် `ops.sh` ကို အသုံးပြုပါ။ Script သည်
+`.env` ကိုဖတ်ပြီး `docker-compose.override.yml` ရှိလျှင် အလိုအလျောက်
+ထည့်သွင်းအသုံးပြုသည်။
 
-## Status and Logs
+## Status နှင့် Logs စစ်ဆေးခြင်း
 
 ```bash
 ./ops.sh status
@@ -13,59 +14,63 @@ and automatically includes `docker-compose.override.yml` when present.
 ./ops.sh logs backend --follow
 ```
 
-`status` checks the six long-running Frappe services, confirms that the site
-exists, and tests its database connection.
+`status` သည် အမြဲ run နေရမည့် Frappe service ခြောက်ခု၊ site ရှိ/မရှိနှင့်
+Database connection ကို စစ်ဆေးပေးသည်။ ပြဿနာရှာဖွေရာတွင် `logs` ဖြင့်
+service အားလုံးကိုကြည့်နိုင်ပြီး service အမည်ထည့်၍ သီးခြားစစ်နိုင်သည်။
 
-## Restart and Cache
+## Restart နှင့် Cache ရှင်းခြင်း
 
 ```bash
 ./ops.sh restart
 ./ops.sh clear-cache
 ```
 
-`restart` requires typing `RESTART`. `clear-cache` runs both Frappe site-cache
-and website-cache clearing without rebuilding an image or migrating the
-database.
+`restart` မလုပ်မီ `RESTART` ဟု အတည်ပြုရမည်။ `clear-cache` သည် image
+ပြန်မဆောက်ဘဲ၊ Database migration မလုပ်ဘဲ Frappe site cache နှင့် website
+cache ကို ရှင်းပေးသည်။
 
-## Controlled Migration
+## ထိန်းချုပ်ထားသော Migration
 
-Use this only when code is already deployed and a separate migration is
-required:
+Code ကို deploy လုပ်ပြီးသော်လည်း Migration ကို သီးခြားလုပ်ရန်လိုသည့်အခါမှ
+အောက်ပါ command ကို အသုံးပြုပါ။
 
 ```bash
 ./ops.sh migrate
 ```
 
-It acquires the same deployment lock used by `deploy.sh`, enables Maintenance
-Mode, stops scheduler/queue workers, creates a verified backup, runs migration,
-clears caches, restarts, verifies, and then disables Maintenance Mode.
+Script သည် `deploy.sh` သုံးသော Deployment lock ကိုပင်ယူပြီး Maintenance
+Mode ဖွင့်ခြင်း၊ scheduler/queue worker များရပ်ခြင်း၊ စစ်ဆေးပြီး Backup
+ဖန်တီးခြင်း၊ Migration လုပ်ခြင်း၊ Cache ရှင်းခြင်း၊ Restart နှင့် Verification
+လုပ်ခြင်းတို့ကို အစဉ်လိုက်ဆောင်ရွက်သည်။ အားလုံးအောင်မြင်မှ Maintenance Mode
+ကို ပိတ်ပေးသည်။
 
-If migration fails, the script leaves Maintenance Mode enabled and the writers
-stopped. Inspect and repair the problem before continuing. Do not automatically
-restore the database unless the rollback code version and backup have been
-selected and verified.
+Migration မအောင်မြင်ပါက Maintenance Mode ကိုဖွင့်ထားပြီး writer service များ
+ရပ်ထားမည်။ Error ကိုစစ်ပြီး ပြင်ဆင်ပြီးမှ ဆက်လုပ်ပါ။ Rollback လုပ်မည့် Code
+version နှင့် Backup ကို သေချာရွေးချယ်စစ်ဆေးခြင်းမရှိဘဲ Database ကို
+အလိုအလျောက် Restore မလုပ်ပါနှင့်။
 
-## Maintenance Mode Recovery
+## Maintenance Mode ပြန်လည်ထိန်းချုပ်ခြင်း
 
 ```bash
 ./ops.sh maintenance-on
 ./ops.sh maintenance-off
 ```
 
-Enabling requires typing `MAINTENANCE`. Disabling requires typing `RECOVERED`
-so a failed deployment is not accidentally exposed to users. Trusted
-automation can pass `--yes` to mutating commands.
+ဖွင့်ရာတွင် `MAINTENANCE`၊ ပိတ်ရာတွင် `RECOVERED` ဟု အတည်ပြုရသည်။ ထိုသို့
+အတည်ပြုခိုင်းခြင်းကြောင့် မအောင်မြင်သေးသော Deployment ကို User များထံ
+မတော်တဆပြန်ဖွင့်မိခြင်းမှ ကာကွယ်ပေးသည်။ ယုံကြည်ရသော Automation အတွက်
+ပြောင်းလဲမှုလုပ်သည့် command များတွင် `--yes` ထည့်နိုင်သည်။
 
-## Which Script Should I Use?
+## ဘယ် Script ကို ဘယ်အချိန်သုံးရမလဲ
 
-| Need | Command |
+| လိုအပ်ချက် | Command |
 |---|---|
-| First site installation | `./setup.sh` |
-| Infrastructure or generated Compose reconfiguration | `./setup.sh --reconfigure` |
-| Routine code/app update | `./deploy.sh apply` |
-| Database migration without a code build | `./ops.sh migrate` |
-| Cache clearing | `./ops.sh clear-cache` |
+| Site ကို ပထမဆုံး install လုပ်ခြင်း | `./setup.sh` |
+| Infrastructure သို့မဟုတ် generated Compose configuration ပြန်ပြင်ခြင်း | `./setup.sh --reconfigure` |
+| ပုံမှန် Code/App update | `./deploy.sh apply` |
+| Code build မပါသော Database migration | `./ops.sh migrate` |
+| Cache ရှင်းခြင်း | `./ops.sh clear-cache` |
 | Service restart | `./ops.sh restart` |
-| Runtime diagnosis | `./ops.sh status`, `./ops.sh logs` |
+| Runtime ပြဿနာစစ်ခြင်း | `./ops.sh status`, `./ops.sh logs` |
 | Production hardening | `./production.sh check/apply/verify` |
-| Backup or restore | `./backup.sh`, `./restore.sh` |
+| Backup သို့မဟုတ် Restore | `./backup.sh`, `./restore.sh` |

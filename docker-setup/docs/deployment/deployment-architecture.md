@@ -1,33 +1,28 @@
-# Three-Server Deployment Architecture and Scaling Guide
+# Three-Server Deployment Architecture နှင့် Scaling လမ်းညွှန်
 
-This document describes the deployment architecture for a Frappe application
-using three separate servers:
+ဒီ Architecture တွင် Server သုံးလုံးကို သီးခြားသုံးသည်။
 
-1. **App Server** — runs the Frappe web application and background services;
-2. **Database Server** — runs MariaDB and stores transactional data; and
-3. **Storage Server** — runs MinIO and stores S3-backed files and backups.
+1. **App Server** — Frappe Web Application နှင့် Background Services
+2. **Database Server** — MariaDB နှင့် Transactional Data
+3. **Storage Server** — MinIO နှင့် S3-backed Files/Backups
 
-It also defines the target architecture and operational requirements for
-scaling from one App Server to multiple App Servers later.
+နောက်ပိုင်း App Server တစ်လုံးမှ အများအပြားသို့ Scale လုပ်ရာတွင် လိုအပ်သော
+Target Architecture နှင့် Operational requirements များကိုလည်း ဖော်ပြထားသည်။
+Server အချင်းချင်း Private Network သုံးပါ။ IP အစစ်၊ Credentials၊ Customer name
+နှင့် Environment-specific Secrets များကို Documentation/Git ထဲ မထည့်ပါနှင့်။
 
-Use private network addresses between servers. Do not commit real addresses,
-credentials, customer names, or environment-specific secrets to this document.
+## 1. Architecture ရည်ရွယ်ချက်
 
-## 1. Architecture Goals
+- Application, Database နှင့် File-storage workloads ခွဲထားရန်။
+- Server တစ်လုံးချင်း Resource sizing နှင့် Maintenance သီးခြားလုပ်ရန်။
+- MariaDB နှင့် MinIO ၏ Network exposure ကို လျှော့ချရန်။
+- Load Balancer နောက်တွင် App Servers ထပ်ထည့်နိုင်သော လမ်းကြောင်းထားရန်။
+- Backup နှင့် Recovery တာဝန်များ ရှင်းလင်းစွာခွဲရန်။
 
-The three-server design provides:
+Server ခွဲထားရုံဖြင့် High Availability မရပါ။ Redundancy မထည့်သေးသရွေ့
+Server တစ်လုံးချင်းသည် Single Point of Failure ဖြစ်နေဆဲဖြစ်သည်။
 
-- separation of application, database, and file-storage workloads;
-- independent resource sizing and maintenance;
-- a smaller network exposure surface for MariaDB and MinIO;
-- a clear path for adding App Servers behind a Load Balancer;
-- independent backup and recovery responsibilities.
-
-Separation alone does not provide High Availability. In the current design,
-each server remains a Single Point of Failure until redundancy is added for its
-service.
-
-## 2. Current Three-Server Architecture
+## 2. လက်ရှိ Three-Server Architecture
 
 ```mermaid
 flowchart LR
@@ -43,7 +38,6 @@ flowchart LR
         Scheduler[Scheduler]
         RedisCache[Redis Cache]
         RedisQueue[Redis Queue]
-
         Proxy --> Frontend
         Frontend --> Backend
         Proxy --> WebSocket
@@ -67,161 +61,118 @@ flowchart LR
     Admin -.->|Restricted SSH and admin access| APP
     Admin -.->|Restricted SSH| DB
     Admin -.->|Restricted console access| Console
-
     Backend -->|Private network SQL| MariaDB
     Workers -->|Private network SQL| MariaDB
     Scheduler -->|Private network SQL| MariaDB
-
     Backend -->|S3 API| MinIO
     Workers -->|S3 API| MinIO
 ```
 
-### 2.1 Server responsibilities
+### Server တစ်လုံးချင်း၏ တာဝန်
 
-| Server | Main services | Persistent state | Must not be publicly exposed |
+| Server | Main Services | Persistent State | Public မဖွင့်ရမည့်အရာ |
 |---|---|---|---|
-| App Server | Reverse Proxy, Frappe frontend/backend, WebSocket, workers, scheduler, Redis | Site configuration, logs, and any files not migrated to S3 | Redis and internal container ports |
-| Database Server | MariaDB | Frappe databases, MariaDB users, grants, and database backups | MariaDB port `3306` |
-| Storage Server | MinIO S3 API and console | Attachments, PDFs, objects, and optional backup objects | S3 API and admin console unless explicitly protected |
+| App Server | Reverse Proxy, frontend/backend, WebSocket, workers, scheduler, Redis | Site config, Logs, S3 မရွှေ့ရသေးသော Files | Redis နှင့် Internal ports |
+| Database Server | MariaDB | Frappe Databases, Users, Grants, Backups | `3306` |
+| Storage Server | MinIO S3 API/Console | Attachments, PDFs, Objects, Optional Backups | `9000`, `9001` ကို Approved sources မှလွဲ၍ မဖွင့်ရ |
 
-### 2.2 Application containers
+App Server Services—
 
-The App Server uses the Docker Compose services defined by this repository:
-
-| Service | Responsibility |
+| Service | တာဝန် |
 |---|---|
-| `frontend` | Serves the site and forwards application requests |
-| `backend` | Runs Frappe/Python request handling and Bench commands |
-| `websocket` | Handles realtime browser connections |
-| `queue-short` | Processes short background jobs |
-| `queue-long` | Processes long background jobs |
-| `scheduler` | Enqueues scheduled Frappe jobs |
-| `redis-cache` | Stores cache data |
-| `redis-queue` | Supports queues and realtime event transport |
-| `configurator` | Writes shared Frappe connection configuration during setup |
+| `frontend` | Site serve လုပ်ပြီး Application requests လွှဲသည်။ |
+| `backend` | Frappe/Python requests နှင့် Bench commands run သည်။ |
+| `websocket` | Realtime browser connections ကို ကိုင်တွယ်သည်။ |
+| `queue-short`, `queue-long` | Background jobs ကို ဆောင်ရွက်သည်။ |
+| `scheduler` | Scheduled Frappe jobs ကို Queue ထဲထည့်သည်။ |
+| `redis-cache` | Cache data သိမ်းသည်။ |
+| `redis-queue` | Queue နှင့် Realtime event transport ကို ထောက်ပံ့သည်။ |
+| `configurator` | Setup အတွင်း Shared Frappe connection config ရေးသည်။ |
 
-In external database mode, the bundled Compose `db` service is not the active
-database. The App Server uses the private MariaDB address configured in `.env`.
+External Database mode တွင် Compose `db` service ကို မသုံးဘဲ `.env` ရှိ
+Private MariaDB address ကို သုံးသည်။
 
-## 3. Configuration Ownership
+## 3. Configuration ပိုင်ဆိုင်ရာနေရာ
 
-Keep configuration ownership explicit so that changing one server does not
-silently redirect another service.
-
-| Setting | Canonical location | Example purpose |
+| Setting | Canonical နေရာ | ရည်ရွယ်ချက် |
 |---|---|---|
-| Database mode and address | `docker-setup/.env` | `DATABASE_MODE`, `DB_HOST`, `DB_PORT` |
-| Site database identity | `sites/<SITE_DOMAIN>/site_config.json` | `db_name`, `db_user`, `db_password` |
-| MinIO endpoint and access configuration | `docker-setup/.env` and Frappe S3 settings | S3 API endpoint, bucket, access key, secret |
-| Redis endpoints | `sites/common_site_config.json` | Cache, queue, and WebSocket Redis services |
-| Public site URL | `.env` and site configuration | Reverse Proxy hostname and HTTPS URL |
-| Encryption key | `sites/<SITE_DOMAIN>/site_config.json` | Decrypts credentials stored by Frappe |
+| Database mode/address | `docker-setup/.env` | `DATABASE_MODE`, `DB_HOST`, `DB_PORT` |
+| Site Database identity | `sites/<SITE_DOMAIN>/site_config.json` | `db_name`, `db_user`, `db_password` |
+| MinIO settings | `.env` နှင့် Frappe S3 settings | Endpoint, Bucket, Access Key, Secret |
+| Redis endpoints | `sites/common_site_config.json` | Cache, Queue, WebSocket Redis |
+| Public URL | `.env` နှင့် Site config | Reverse Proxy hostname/HTTPS URL |
+| Encryption Key | `sites/<SITE_DOMAIN>/site_config.json` | Frappe သိမ်းထားသော Credentials decrypt လုပ်ရန် |
 
-All App Servers serving the same site must have the same site configuration,
-including the same `encryption_key`. Never generate a different encryption key
-on a newly added App Server.
+Site တစ်ခုတည်းကို Serve လုပ်သော App Servers အားလုံးတွင် Site configuration
+နှင့် `encryption_key` တူရမည်။ App Server အသစ်တွင် Encryption Key အသစ်
+မဖန်တီးပါနှင့်။
 
-Detailed setup procedures:
+ဆက်စပ်လမ်းညွှန်များ—
 
-- [External MariaDB on Ubuntu](../database/external-database-ubuntu.md)
-- [MinIO S3 integration](../storage/minio-s3-integration-guide.md)
-- [Reverse Proxy configuration](reverse-proxy-guide.md)
-- [Backup procedure](../operations/backup.md)
-- [Restore procedure](../operations/restore.md)
+- [External MariaDB](../database/external-database-ubuntu.md)
+- [MinIO S3](../storage/minio-s3-integration-guide.md)
+- [Reverse Proxy](reverse-proxy-guide.md)
+- [Backup](../operations/backup.md) / [Restore](../operations/restore.md)
 
-## 4. Request and Data Flow
-
-### 4.1 Normal web request
+## 4. Request နှင့် Data Flow
 
 ```text
-Browser
-  -> HTTPS Reverse Proxy
-  -> Frappe frontend
-  -> Frappe backend
-  -> MariaDB for transactional data
-  -> MinIO when an S3-backed file is read or written
-  -> Browser response
+Web request:
+Browser -> HTTPS Reverse Proxy -> frontend -> backend
+        -> MariaDB / MinIO -> Browser response
+
+Background job:
+backend or scheduler -> Redis queue -> worker -> MariaDB and/or MinIO
+
+Realtime event:
+backend -> Redis realtime channel -> WebSocket -> Browser
+
+File upload:
+Browser -> App Server -> Frappe permission validation
+        -> MinIO object + MariaDB File metadata
 ```
 
-### 4.2 Background job
+MinIO ထဲသိမ်းထားခြင်းသည် Frappe Permission check ကို အစားမထိုးပါ။ Private File
+ဖွင့်တိုင်း Server-side Authorization ဖြတ်ရမည်။
 
-```text
-Frappe backend or scheduler
-  -> Redis queue
-  -> queue-short or queue-long worker
-  -> MariaDB and/or MinIO
-```
+## 5. Network နှင့် Firewall
 
-### 4.3 Realtime event
-
-```text
-Frappe backend
-  -> Redis queue/realtime channel
-  -> WebSocket service
-  -> Connected browser
-```
-
-### 4.4 File upload
-
-```text
-Browser
-  -> App Server
-  -> Frappe file validation and permission checks
-  -> MinIO S3 API
-  -> File metadata stored in MariaDB
-```
-
-Private files must still pass application authorization. Storing a file in
-MinIO does not replace Frappe permission checks.
-
-## 5. Network and Firewall Model
-
-Recommended allowlist:
-
-| Source | Destination | Port | Purpose |
+| Source | Destination | Port | ရည်ရွယ်ချက် |
 |---|---|---:|---|
-| Users or trusted Reverse Proxy | App Server | `443/tcp` | HTTPS application access |
-| App Server | Database Server | `3306/tcp` | MariaDB connection |
+| Users/Trusted Proxy | App Server | `443/tcp` | HTTPS |
+| App Server | Database Server | `3306/tcp` | MariaDB |
 | App Server | Storage Server | `9000/tcp` | MinIO S3 API |
-| Approved administrators | Each server | `22/tcp` | SSH administration |
-| Approved administrators or management network | Storage Server | `9001/tcp` | MinIO console |
+| Approved Admins | Servers | `22/tcp` | SSH |
+| Approved Admins/Management Network | Storage Server | `9001/tcp` | MinIO Console |
 
-Security requirements:
+- Application User များအတွက် HTTPS ကိုသာ expose လုပ်ပါ။
+- MariaDB `3306` ကို App Server တစ်လုံးချင်း၏ Routed source IP အတွက်သာ ဖွင့်ပါ။
+- MinIO API/Console ကို Approved sources အတွက်သာ ဖွင့်ပါ။
+- Redis ports ကို Docker/Private service network ပြင်ပ မဖွင့်ပါနှင့်။
+- Untrusted network path တွင် TLS သုံးပြီး Admin access ကို VPN/Management
+  network မှ ပြုလုပ်ပါ။
+- Frappe, Backup jobs နှင့် Human Admin အတွက် Least-privilege Credentials
+  သီးခြားသုံးပါ။
 
-- expose only HTTPS to application users;
-- restrict MariaDB `3306` to the routed source IP of each App Server;
-- restrict MinIO S3 and console access to approved sources;
-- do not publish Redis ports outside the Docker/private service network;
-- use TLS for external and untrusted network paths;
-- keep administrative access on a management network or VPN;
-- use separate least-privilege credentials for Frappe, backup jobs, and human
-  administration.
+## 6. လက်ရှိ Availability
 
-## 6. Current Availability Characteristics
-
-The current three-server deployment improves isolation but has the following
-failure behavior:
-
-| Failure | Effect |
+| Failure | သက်ရောက်မှု |
 |---|---|
-| App Server unavailable | Portal, Desk, workers, scheduler, and realtime access stop |
-| Database Server unavailable | Requests and jobs requiring database access fail |
-| Storage Server unavailable | S3-backed uploads and file access fail; database-only operations may continue |
-| App Server Redis unavailable | Cache, queues, scheduled work, and realtime features are affected |
+| App Server down | Portal, Desk, Workers, Scheduler, Realtime ရပ်သည်။ |
+| Database Server down | Database လိုသော Requests/Jobs မအောင်မြင်ပါ။ |
+| Storage Server down | S3 Upload/File access မရပါ။ Database-only operations အချို့ ဆက်လုပ်နိုင်သည်။ |
+| App Server Redis down | Cache, Queues, Scheduled work, Realtime ထိခိုက်သည်။ |
 
-Backups stored only on the same Database or Storage Server are not sufficient
-for disaster recovery. Keep verified copies in a separate failure domain and
-perform periodic restore tests.
+Database/Storage Server တစ်လုံးတည်းပေါ်ရှိ Backup သည် Disaster Recovery အတွက်
+မလုံလောက်ပါ။ သီးခြား Failure domain တွင် Verified copy ထားပြီး Restore Test
+ပုံမှန်လုပ်ပါ။
 
-## 7. Target Multiple-App-Server Architecture
-
-The target design adds a Load Balancer and runs identical Frappe application
-nodes against shared stateful services.
+## 7. Target Multi-App-Server Architecture
 
 ```mermaid
 flowchart TB
     Users[Portal and Desk Users]
-    LB[Load Balancer / Reverse Proxy<br/>HTTPS and health checks]
+    LB[Load Balancer / Reverse Proxy<br/>HTTPS and Health Checks]
 
     subgraph APPS[Stateless App Tier]
         App1[App Server 1<br/>frontend, backend,<br/>workers, websocket]
@@ -231,250 +182,148 @@ flowchart TB
 
     subgraph SHARED[Shared Stateful Services]
         SharedRedis[(Shared Redis<br/>cache, queue, realtime)]
-        SharedDB[(MariaDB<br/>primary or HA service)]
-        SharedS3[(MinIO<br/>single service or distributed cluster)]
+        SharedDB[(MariaDB<br/>Primary or HA Service)]
+        SharedS3[(MinIO<br/>Service or Distributed Cluster)]
     end
 
     ActiveScheduler[One Active Scheduler]
-    Admin[Management Network]
-
     Users -->|HTTPS| LB
     LB -->|Health-checked traffic| App1
     LB -->|Health-checked traffic| App2
     LB -->|Health-checked traffic| AppN
-
     App1 --> SharedRedis
     App2 --> SharedRedis
     AppN --> SharedRedis
-
     App1 --> SharedDB
     App2 --> SharedDB
     AppN --> SharedDB
-
     App1 --> SharedS3
     App2 --> SharedS3
     AppN --> SharedS3
-
     ActiveScheduler --> SharedRedis
     ActiveScheduler --> SharedDB
-    Admin -.-> LB
-    Admin -.-> APPS
-    Admin -.-> SHARED
 ```
 
-## 8. Requirements Before Adding App Servers
+## 8. App Server ထပ်မထည့်မီလိုအပ်ချက်များ
 
-Do not place a second independent copy of the current App Server behind a Load
-Balancer without addressing the shared-state requirements below.
+### Identical Release
 
-### 8.1 Identical application release
+Node အားလုံးတွင် Frappe/App versions, Immutable Docker image, Frontend assets,
+Migration level နှင့် Configuration တူရမည်။ Old/New versions သည် Rollout
+အတွင်း Schema-compatible ဖြစ်မှ Rolling Deployment သုံးပါ။ Migration ကို
+Designated node တစ်ခုမှ တစ်ကြိမ်သာ Run ပါ။
 
-Every App Server must run:
+### Shared Site Configuration နှင့် Secrets
 
-- the same Frappe and application versions;
-- the same immutable/custom Docker image;
-- the same built frontend assets;
-- the same migration level;
-- the same site and global configuration.
+`SITE_DOMAIN`, Database identity/password, `encryption_key`, MinIO settings,
+Redis endpoints နှင့် Integration secrets အားလုံး တူရမည်။ Approved Secret
+Management ဖြင့် ဖြန့်ပြီး Git/Public image ထဲ မထည့်ပါနှင့်။
 
-Use a rolling deployment only when the old and new application versions are
-schema-compatible during the rollout. Run database migrations once as a
-controlled deployment step.
+### Shared Redis
 
-### 8.2 Shared site configuration and secrets
+App Servers, Workers, Scheduler နှင့် WebSocket အားလုံးက တူညီသော Shared Redis
+Cache/Queue/Realtime Services ကို သုံးရမည်။ Independent Redis သုံးပါက Job,
+Cache နှင့် Realtime event မတူညီမှု ဖြစ်နိုင်သည်။ Containers တိုးရုံဖြင့် Redis
+High Availability မရပါ။
 
-Every node must use the same:
+### Active Scheduler တစ်ခုတည်း
 
-- `SITE_DOMAIN`;
-- database name, username, and password;
-- `encryption_key`;
-- MinIO endpoint, bucket, and credentials;
-- Redis endpoints;
-- application integration secrets.
+Frappe version/design က coordinated multi-scheduler ကို သီးခြားအတည်ပြုမထားလျှင်
+Site တစ်ခုအတွက် Active Scheduler တစ်ခုသာထားပါ။ မဟုတ်လျှင် Scheduled jobs
+Duplicate ဖြစ်နိုင်သည်။ Workers ကို Shared state နှင့် Identical code ဖြင့်
+သီးခြား Scale လုပ်နိုင်သည်။
 
-Distribute secrets through an approved secret-management process. Do not copy
-them into Git or bake them into a public image.
+### Shared File Storage
 
-### 8.3 Shared Redis
+App Servers အားလုံးသည် Durable File store တစ်ခုတည်းကို Read/Write လုပ်ရမည်။
+လိုအပ်သော File များ `sites/<SITE_DOMAIN>/public/files` သို့မဟုတ်
+`private/files` တွင် Node-local အဖြစ်ကျန်နေပါက MinIO သို့ Migrate လုပ်ခြင်း
+သို့မဟုတ် Supported shared filesystem ထည့်ခြင်းမပြုမီ Scale မလုပ်ပါနှင့်။
 
-The current single-App-Server Compose stack runs Redis locally. For reliable
-multi-App operation, configure all App Servers, workers, schedulers, and
-WebSocket services to use the same approved Redis cache and queue/realtime
-services.
+### Load Balancer
 
-Independent Redis instances can cause:
+TLS termination/pass-through, HTTP Health Checks, WebSocket Upgrade,
+Trusted Forwarded Headers, Upload-size/Timeout settings နှင့် Deployment
+Connection Draining ပါရမည်။ Session Affinity သည် Shared Redis/File
+Storage/Configuration ကို အစားမထိုးပါ။
 
-- jobs to be visible only to workers on one node;
-- cache inconsistency;
-- realtime events not reaching users connected to another node;
-- operational confusion during failover.
+### Database Capacity
 
-Select and test the Redis availability model before production scaling. Do not
-assume that adding containers automatically provides Redis High Availability.
+Backend/Worker တိုးတိုင်း MariaDB connections တိုးသည်။ Current connections,
+Query latency, `max_connections`, CPU, Memory, Storage latency/IOPS, Slow
+Queries, Locks နှင့် Disk growth ကို တိုင်းတာပါ။ Connection limit တင်ရုံမလုပ်ဘဲ
+Memory capacity နှင့် Query behavior ကို အရင်စစ်ပါ။ App Server source IP
+တစ်ခုချင်းအတွက် Least-privilege Grants ထည့်ပါ။
 
-### 8.4 One active scheduler
+## 9. Scaling အဆင့်များ
 
-Run one active Frappe scheduler for the site unless the deployed Frappe version
-and scheduler design explicitly support coordinated multi-scheduler operation.
-Starting an independent scheduler on every App Server can enqueue duplicate
-scheduled work.
+1. **Current** — App Server 1, MariaDB 1, MinIO 1; Redis/Scheduler သည် App
+   Server ပေါ်တွင်ရှိပြီး Backup/Monitoring တည်ဆောက်ထားသည်။
+2. **Shared State ပြင်ဆင်ခြင်း** — Redis ကို Shared infrastructure သို့ရွှေ့၊
+   Files ကို Shared Storage တွင်ထား၊ Secrets ဖြန့်ဝေမှုနှင့် Immutable Deploy
+   တည်ဆောက်ပြီး Health Checks/Logs/Metrics ထည့်သည်။
+3. **Load Balancer + App Server 2** — Identical node တစ်လုံးထပ်တင်၊ Firewall
+   Allowlist ထည့်၊ Shared Services ချိတ်၊ Scheduler တစ်ခုသာဖွင့်ပြီး Web,
+   Jobs, Realtime, Upload နှင့် Permissions စမ်းသည်။
+4. **Measured Scaling** — Request concurrency အတွက် Web nodes၊ Queue
+   throughput အတွက် Workers တိုးပြီး Bottleneck အတိုင်း MariaDB/Redis/MinIO
+   ကို Scale/Redundant လုပ်သည်။
 
-Workers may be scaled separately from web nodes, provided all workers use the
-shared Redis queues, shared MariaDB database, identical application code, and
-the same site configuration.
+## 10. Deployment နှင့် Migration Sequence
 
-### 8.5 Shared file storage
+1. Immutable Application image/version တစ်ခု Build/Identify လုပ်ပါ။
+2. Schema Migration မတိုင်မီ Verified Database Backup ယူပါ။
+3. Exclusive access လိုပါက Maintenance Mode ဖွင့်ပါ။
+4. Designated node တစ်ခုမှ Migration တစ်ကြိမ် run ပါ။
+5. App Servers ကို Controlled batches ဖြင့် Recreate လုပ်ပါ။
+6. Node တစ်ခုချင်း Healthy ဖြစ်မှ Traffic ပို့ပါ။
+7. Workers, Scheduler, WebSocket, Database နှင့် MinIO access စစ်ပါ။
+8. Maintenance Mode ပိတ်ပြီး Errors, Latency နှင့် Queues စောင့်ကြည့်ပါ။
+9. Rollback artifact နှင့် Data-safe Rollback plan ထားပါ။
 
-All App Servers must read and write the same durable file store. MinIO provides
-the shared object boundary for S3-backed files.
+Incompatible Migrations ကို App Servers အများအပြားမှ တစ်ပြိုင်နက် မလုပ်ပါနှင့်။
 
-Before adding nodes, confirm that no required uploads remain only in an App
-Server's local `sites/<SITE_DOMAIN>/public/files` or `private/files` directory.
-If local files remain, migrate them or provide a supported shared filesystem.
+## 11. Monitoring
 
-The current S3 attachment integration has a documented bucket-model
-limitation. Review the
-[MinIO S3 integration guide](../storage/minio-s3-integration-guide.md#bucket-model-limitation)
-before treating public and private files as independently isolated buckets.
-
-### 8.6 Load Balancer behavior
-
-The Load Balancer must provide:
-
-- TLS termination or TLS pass-through according to the security design;
-- HTTP health checks that remove unhealthy App Servers;
-- WebSocket upgrade support;
-- forwarded client/protocol headers trusted only from approved proxies;
-- request/body-size and timeout values suitable for application uploads;
-- connection draining during deployments.
-
-Session affinity may be used during the first scaling phase, but it is not a
-substitute for shared Redis, shared file storage, and identical configuration.
-
-### 8.7 Database capacity and connection limits
-
-Each additional backend and worker increases MariaDB connections. Before
-scaling:
-
-- measure current concurrent connections and query latency;
-- calculate the maximum connection demand from all web and worker processes;
-- verify MariaDB `max_connections`, CPU, memory, storage latency, and IOPS;
-- retain per-database least-privilege grants for every App Server source IP;
-- monitor slow queries, locks, replication health if applicable, and disk
-  growth.
-
-Do not solve connection pressure by raising limits without confirming memory
-capacity and application query behavior.
-
-## 9. Recommended Scaling Stages
-
-### Stage 1 — current separated deployment
-
-- one App Server;
-- one MariaDB Server;
-- one MinIO Server;
-- Redis and Scheduler on the App Server;
-- verified backups and monitoring.
-
-### Stage 2 — prepare shared application state
-
-- move Redis to shared/private infrastructure;
-- verify all required files are in shared MinIO or another supported shared
-  store;
-- centralize configuration and secrets distribution;
-- create a repeatable immutable App Server deployment;
-- add health checks and centralized logs/metrics.
-
-### Stage 3 — add the Load Balancer and second App Server
-
-- deploy an identical second App Server;
-- allow its private IP through MariaDB and MinIO firewalls;
-- connect both nodes to the same Redis, MariaDB, and MinIO services;
-- keep only one active Scheduler;
-- validate HTTP, background jobs, realtime events, uploads, and permissions;
-- send test traffic through the Load Balancer before production cutover.
-
-### Stage 4 — scale by measured demand
-
-- add web nodes for request concurrency;
-- add workers independently for queue throughput;
-- scale MariaDB, Redis, and MinIO based on measured bottlenecks;
-- introduce service redundancy and tested failover where availability targets
-  require it.
-
-## 10. Deployment and Migration Sequence
-
-For each App Server release:
-
-1. build and identify one immutable application image/version;
-2. take and verify a database backup before schema migrations;
-3. enable maintenance mode if the migration requires exclusive access;
-4. run migrations once from a designated deployment node;
-5. deploy/recreate App Servers in controlled batches;
-6. wait for each health check before sending traffic;
-7. verify workers, scheduler, WebSocket, database, and MinIO access;
-8. remove maintenance mode and monitor errors, latency, and queues;
-9. retain a rollback artifact and follow a data-safe rollback plan.
-
-Do not run incompatible migrations concurrently from multiple App Servers.
-
-## 11. Monitoring and Alerts
-
-Monitor at least:
-
-| Layer | Signals |
+| Layer | စောင့်ကြည့်ရန် |
 |---|---|
-| Load Balancer | Healthy backends, request rate, 4xx/5xx, latency, TLS expiry |
-| App Servers | CPU, memory, disk, container restarts, application errors |
-| Workers | Queue depth, oldest job age, failed jobs, worker availability |
-| Scheduler | Last successful tick and scheduled-job failures |
-| Redis | Memory, evictions, connectivity, persistence/replication state if used |
-| MariaDB | Connections, slow queries, locks, buffer pool, replication, disk space |
-| MinIO | Capacity, object errors, node/disk health, replication and backup status |
-| Backups | Last success, size anomaly, off-server copy, restore-test age |
+| Load Balancer | Healthy backends, Request rate, 4xx/5xx, Latency, TLS expiry |
+| App Servers | CPU, Memory, Disk, Container restarts, App errors |
+| Workers/Scheduler | Queue depth, Oldest job, Failed jobs, Last successful tick |
+| Redis | Memory, Evictions, Connectivity, Replication/Persistence |
+| MariaDB | Connections, Slow queries, Locks, Buffer pool, Disk |
+| MinIO | Capacity, Object errors, Node/Disk health, Backup status |
+| Backups | Last success, Size anomaly, Offsite copy, Restore-test age |
 
-Alerts must identify the affected layer. A generic site-down alert is not
-enough to distinguish an App Server failure from MariaDB, Redis, or MinIO
-failure.
+Alert တွင် ဘယ် Layer ပျက်သည်ကို ခွဲပြနိုင်ရမည်။ Generic Site-down Alert
+တစ်ခုတည်း မလုံလောက်ပါ။
 
-## 12. Backup and Recovery Boundaries
+## 12. Backup နှင့် Recovery နယ်ပယ်
 
-A complete Frappe recovery set includes:
+Complete Recovery set တွင် MariaDB Backup, Secret အဖြစ်ကာကွယ်ထားသော Site
+config, Original `encryption_key`, S3 မရှိသေးသော Local files, MinIO objects
+နှင့် Bucket config, Application image/version/App list နှင့် Infrastructure
+config ပါရမည်။ Database နှင့် Objects မကိုက်ပါက Broken attachments ဖြစ်နိုင်သည်။
+Approved Non-production environment တွင် Full Recovery ကို စမ်းပါ။
 
-- MariaDB database backup;
-- site configuration backup, protected as a secret;
-- the original `encryption_key`;
-- all public/private local files not stored in S3;
-- MinIO objects and bucket configuration;
-- application image/version and app list;
-- infrastructure configuration required to recreate the services.
+## 13. Acceptance Checklist
 
-Database and MinIO backups should be consistent enough for the application's
-recovery-point objective. A database restored without the matching file
-objects can leave broken attachments. Test the complete recovery process in an
-approved non-production environment.
+### လက်ရှိ Three-Server Deployment
 
-## 13. Architecture Acceptance Checklist
+- [ ] App Server/Approved Proxy သာ Public HTTPS လက်ခံသည်။
+- [ ] MariaDB `3306` နှင့် MinIO ports ကို Approved source IP များအတွက်သာ ဖွင့်ထားသည်။
+- [ ] Frappe သည် External MariaDB နှင့် MinIO ကို အမှန်တကယ်သုံးနေသည်။
+- [ ] Redis ports Public မဖွင့်ထားပါ။
+- [ ] Database, Files, Configuration နှင့် Encryption Key Backup ရှိသည်။
+- [ ] Restore Test နှင့် Monitoring အလုပ်လုပ်သည်။
 
-### Current three-server deployment
+### Multi-App Servers မတိုင်မီ
 
-- [ ] Only the App Server or approved proxy accepts public HTTPS traffic.
-- [ ] MariaDB accepts `3306` only from approved App Server source IPs.
-- [ ] MinIO API and console access are restricted to approved sources.
-- [ ] Frappe uses the external MariaDB address in `common_site_config.json`.
-- [ ] Frappe uploads and reads S3-backed files through MinIO.
-- [ ] Redis ports are not publicly exposed.
-- [ ] Database, files, configuration, and encryption key are backed up.
-- [ ] Restore tests and monitoring are operational.
-
-### Before multiple App Servers
-
-- [ ] A Load Balancer with health checks and WebSocket support is ready.
-- [ ] All App Servers use an identical application image and migration level.
-- [ ] Site configuration and `encryption_key` are identical on every node.
-- [ ] Redis cache, queues, and realtime transport are shared.
-- [ ] Exactly one active Scheduler is designated.
-- [ ] Required files are on shared storage rather than node-local volumes.
-- [ ] MariaDB and MinIO allow every approved App Server source IP.
-- [ ] Connection capacity and resource limits are measured.
-- [ ] Rolling deployment, failure, and rollback scenarios are tested.
+- [ ] Load Balancer တွင် Health Checks/WebSocket support ရှိသည်။
+- [ ] Nodes အားလုံး Identical image/Migration level သုံးသည်။
+- [ ] Site config နှင့် `encryption_key` တူသည်။
+- [ ] Redis cache/queues/realtime Shared ဖြစ်သည်။
+- [ ] Active Scheduler တစ်ခုသာ သတ်မှတ်ထားသည်။
+- [ ] Required files အားလုံး Shared Storage တွင်ရှိသည်။
+- [ ] MariaDB/MinIO Firewall တွင် App Servers အားလုံးပါသည်။
+- [ ] Capacity တိုင်းတာပြီး Rolling Deployment/Failure/Rollback စမ်းထားသည်။

@@ -1,13 +1,8 @@
 # Production Launch Checklist
 
-Project: Frappe Application Deployment  
-Stack: Frappe Docker setup  
-Audience: system administrator, deployment engineer, application administrator
-
-Use this checklist before launching a Frappe site for real users. This guide is intentionally generic so it can be reused for different Frappe apps.
-
-The automated parts of this checklist are available through
-[`production.sh`](production-mode.md):
+ဒီ Checklist ကို Frappe Site ကို User အမှန်များအတွက် Go-Live မလုပ်မီ
+System Administrator, Deployment Engineer နှင့် Application Administrator
+တို့က အတူစစ်ရန် အသုံးပြုပါ။ Automated အပိုင်းများ—
 
 ```bash
 ./production.sh check
@@ -15,37 +10,27 @@ The automated parts of this checklist are available through
 ./production.sh verify
 ```
 
-The apply command creates a verified backup before changing Frappe settings.
-It does not replace the manual DNS, TLS, reverse-proxy, access-control, and
-restore-test checks in this document.
+`apply` သည် Settings မပြောင်းမီ Verified Backup ဖန်တီးသော်လည်း Manual DNS,
+TLS, Reverse Proxy, Access Control နှင့် Restore Test များကို အစားမထိုးပါ။
 
 ## 1. Launch Decision
 
-- [ ] Confirm this is the approved production server.
-- [ ] Confirm the launch date and support window.
-- [ ] Confirm who can approve emergency rollback.
-- [ ] Confirm staging/testing and production data are separated.
-- [ ] Confirm no test-only data appears to production users.
-- [ ] Confirm the application owner has accepted the launch scope.
-
-Recommended rollout:
+- [ ] Approved Production Server နှင့် Launch date မှန်သည်။
+- [ ] Support window နှင့် Emergency Rollback အတည်ပြုသူ သတ်မှတ်ထားသည်။
+- [ ] Staging/Test Data နှင့် Production Data သီးခြားဖြစ်သည်။
+- [ ] Test-only Data ကို Production User မမြင်ပါ။
+- [ ] Application owner က Launch scope ကို လက်ခံထားသည်။
 
 ```text
-Internal test -> limited user rollout -> full production rollout
+Internal Test -> Limited User Rollout -> Full Production Rollout
 ```
 
-Avoid launching to all users before login, access control, backup, restore, and notifications are tested.
+## 2. Domain နှင့် HTTPS
 
-## 2. Domain and HTTPS
-
-- [ ] DNS record is created.
-- [ ] Domain points to the production server.
-- [ ] HTTPS certificate is installed.
-- [ ] Reverse proxy is configured.
-- [ ] HTTP redirects to HTTPS.
-- [ ] Frappe `host_name` is set to the public URL.
-
-Recommended `.env` values:
+- [ ] DNS သည် Production Server ကိုညွှန်သည်။
+- [ ] HTTPS Certificate နှင့် Reverse Proxy ပြင်ပြီးဖြစ်သည်။
+- [ ] HTTP မှ HTTPS Redirect ဖြစ်သည်။
+- [ ] Frappe `host_name` သည် Public URL အမှန်ဖြစ်သည်။
 
 ```env
 DEPLOYMENT_MODE=production
@@ -57,108 +42,58 @@ FRAPPE_INTERNAL_PORT=8080
 BIND_ADDRESS=127.0.0.1
 ```
 
-Recommended traffic flow:
+`8080`/`8787` ကို User များထံ တိုက်ရိုက်မဖွင့်ပါနှင့်။
+[Reverse Proxy လမ်းညွှန်](reverse-proxy-guide.md) ကိုကြည့်ပါ။
 
-```text
-User Browser
-  -> https://app.example.com
-  -> HTTPS reverse proxy
-  -> http://127.0.0.1:8787
-  -> Docker frontend container:8080
-```
+## 3. Docker Compose
 
-Do not expose `FRAPPE_INTERNAL_PORT=8080` directly to users.
+- [ ] `CUSTOM_IMAGE`, `FRAPPE_SITE_NAME_HEADER` နှင့် Named Volumes မှန်သည်။
+- [ ] Long-running Services တွင် `restart: unless-stopped` ရှိသည်။
+- [ ] Database, Redis, Backend, Frontend, WebSocket Health Checks ရှိသည်။
+- [ ] Log rotation နှင့် Server size နှင့်ကိုက်သော Memory limits ရှိသည်။
+- [ ] Frontend သည် Intended Host port သာ expose လုပ်သည်။
+- [ ] Database port Public မဖွင့်ထားပါ။
 
-See also:
-
-```text
-docs/deployment/reverse-proxy-guide.md
-```
-
-## 3. Docker Compose Review
-
-- [ ] `CUSTOM_IMAGE` is correct.
-- [ ] `FRAPPE_SITE_NAME_HEADER` uses the internal site name.
-- [ ] Named volumes are used for database and site files.
-- [ ] `restart: unless-stopped` exists for long-running services.
-- [ ] Healthchecks exist for database, Redis, backend, frontend, and websocket.
-- [ ] Log rotation is configured.
-- [ ] Memory limits are suitable for server size.
-- [ ] Frontend service exposes only the intended host port.
-- [ ] Database service is not exposed publicly.
-
-Recommended DB port for production with local-only database client access:
+Local-only Database Client access လိုမှ—
 
 ```yaml
 ports:
   - "127.0.0.1:3307:3306"
 ```
 
-Use this only for trusted internal LAN testing:
+Direct Database Client access မလိုပါက DB `ports` section ကို မထားပါနှင့်။
 
-```yaml
-ports:
-  - "3307:3306"
-```
+## 4. Secrets နှင့် Passwords
 
-If direct database client access is not needed, remove the DB `ports` section.
-
-## 4. Secrets and Passwords
-
-- [ ] `.env` is not committed to Git.
-- [ ] `ADMIN_PASSWORD` is not `admin`.
-- [ ] `MYSQL_ROOT_PASSWORD` is strong.
-- [ ] `MARIADB_ROOT_PASSWORD` is strong.
-- [ ] `DB_PASSWORD` is strong.
-- [ ] Optional service default passwords are changed if enabled.
-- [ ] Secret keys are generated with strong random values.
-- [ ] Git access tokens are not stored in committed URLs.
-
-Do not use production passwords from `.env.example`.
-
-Recommended secret generation:
+- [ ] `.env` ကို Git မထည့်ထားပါ။
+- [ ] `ADMIN_PASSWORD`, Database passwords နှင့် Optional Service passwords
+  များသည် Default မဟုတ်ဘဲ Strong ဖြစ်သည်။
+- [ ] Secret keys ကို Random value ဖြင့်ထုတ်ထားသည်။
+- [ ] Git URLs, Logs နှင့် Documentation တွင် Token/Secret မရှိပါ။
 
 ```bash
 openssl rand -base64 32
 ```
 
-## 5. Git and App Sources
+## 5. Git နှင့် App Sources
 
-- [ ] `apps.json` contains only approved apps.
-- [ ] `apps.json` does not contain exposed access tokens.
-- [ ] App branches/tags are approved.
-- [ ] Custom app source is version controlled.
-- [ ] Production deploy uses tested commits, tags, or release branches.
-- [ ] Private apps use deploy keys or another secure access method.
+- [ ] `apps.json` တွင် Approved Apps/Branches/Tags သာရှိသည်။
+- [ ] Custom App source ကို Version Control လုပ်ထားသည်။
+- [ ] Production တွင် Staging စမ်းပြီးသော Commit/Tag/Release Branch သုံးသည်။
+- [ ] Private Apps တွင် Fine-grained Token/Deploy Key ကို Securely သုံးသည်။
+- [ ] Token ကို URL သို့မဟုတ် Git history ထဲ မထည့်ထားပါ။
 
-Recommended pattern:
+## 6. Launch မတိုင်မီ Backup
 
-```text
-frappe app     -> matching Frappe version branch/tag
-dependency app -> matching compatible branch/tag
-custom app     -> project-controlled branch/tag
-```
-
-Avoid using moving branches for production unless they were tested in staging first.
-
-## 6. Backup Before Launch
-
-- [ ] Run a manual backup before launch.
-- [ ] Confirm backup file exists.
-- [ ] Confirm backup includes database.
-- [ ] Confirm backup includes private files.
-- [ ] Confirm backup includes public files.
-- [ ] Copy backup outside the server.
-- [ ] Test restore on a non-production machine.
-
-Recommended command:
+- [ ] Manual Backup အောင်မြင်သည်။
+- [ ] Database, Public files, Private files နှင့် Site config ပါသည်။
+- [ ] Server ပြင်ပတွင် Verified copy ရှိသည်။
+- [ ] Non-production Server တွင် Restore Test လုပ်ပြီးဖြစ်သည်။
 
 ```bash
-cd /path/to/docker-setup
+cd <project-path>/docker-setup
 ./backup.sh
 ```
-
-Production recommendation:
 
 ```env
 AUTO_BACKUP_BEFORE_SETUP=1
@@ -167,301 +102,161 @@ REQUIRE_BACKUP_BEFORE_SETUP=1
 
 ## 7. Restore Test
 
-- [ ] Restore process is documented.
-- [ ] Restore was tested with a real backup.
-- [ ] Admin login works after restore.
-- [ ] Uploaded files open after restore.
-- [ ] Core application pages open after restore.
-- [ ] Background jobs still run after restore.
+- [ ] Restore procedure မှတ်တမ်းတင်ထားသည်။
+- [ ] Backup အမှန်ဖြင့် Restore အောင်မြင်သည်။
+- [ ] Restore ပြီး Admin Login, Files, Core pages နှင့် Background jobs
+  အလုပ်လုပ်သည်။
 
-Do not consider backup complete until restore was tested at least once.
+Restore စမ်းမထားသော Backup ကို Recovery-ready ဟု မယူဆပါနှင့်။
 
 ## 8. Database Access
 
-- [ ] Database client access is limited.
-- [ ] DB port is not exposed publicly.
-- [ ] Root password is strong.
-- [ ] Site database credentials are stored securely.
-- [ ] Firewall allows DB access only from trusted machines.
-- [ ] Remote DB access uses SSH tunnel or VPN when possible.
+- [ ] Database port Public မဖွင့်ဘဲ Trusted sources အတွက်သာ Allow လုပ်ထားသည်။
+- [ ] Site Database credentials ကို Securely သိမ်းထားသည်။
+- [ ] Remote Admin access သည် SSH Tunnel/VPN သုံးသည်။
+- [ ] External Database ဆိုပါက App Server source IP ကိုသာ Allow လုပ်ထားသည်။
 
-Recommended for production:
+[Database Client Access လမ်းညွှန်](../database/database-client-access.md) ကိုကြည့်ပါ။
 
-```yaml
-ports:
-  - "127.0.0.1:3307:3306"
-```
+## 9. Users နှင့် Roles
 
-For remote admin access, prefer SSH tunnel instead of exposing MariaDB to the network.
+- [ ] Administrator နှင့် Emergency Admin account အလုပ်လုပ်သည်။
+- [ ] Application Admin, Normal User, Restricted User accounts ကို သီးခြားစမ်းသည်။
+- [ ] Disabled User Login မဝင်နိုင်ပါ။
+- [ ] Normal User သည် Admin-only Modules/Desk areas မမြင်နိုင်ပါ။
+- [ ] User တစ်မျိုးချင်း Intended pages ကိုသာ Access ရသည်။
 
-See also:
+လိုအပ်ချက်မရှိဘဲ `Administrator`, `System Manager`, `Website Manager`,
+`Developer` Roles မပေးပါနှင့်။
 
-```text
-docs/database/database-client-access.md
-```
+## 10. Login နှင့် Authentication
 
-## 9. User and Role Readiness
+- [ ] Password Login/Reset နှင့် Email Link policy ကို စမ်း/ဆုံးဖြတ်ထားသည်။
+- [ ] Two Factor Authentication နှင့် SSO policy မှတ်တမ်းတင်ထားသည်။
+- [ ] SSO မရချိန် ဝင်နိုင်သော Emergency Admin account ရှိသည်။
+- [ ] Disabled User Login မဝင်နိုင်ပါ။
 
-- [ ] Administrator account works.
-- [ ] Emergency admin account exists.
-- [ ] Application administrator role is tested.
-- [ ] Normal user account is tested.
-- [ ] Restricted user account is tested.
-- [ ] Disabled user cannot login.
-- [ ] Users do not see admin-only modules.
-- [ ] Normal users can access the intended application pages.
-- [ ] Normal users cannot access restricted Desk areas.
+SSO ကို User အနည်းငယ်ဖြင့် Pilot လုပ်ပြီးမှ Production အပြည့်ဖွင့်ပါ။
 
-Avoid giving normal users:
+## 11. Email နှင့် Notifications
 
-```text
-Administrator
-System Manager
-Website Manager
-Developer
-```
+- [ ] Outgoing Email account ပြင်ထားပြီး Test Email အောင်မြင်သည်။
+- [ ] Password Reset နှင့် Important Workflow notifications ရသည်။
+- [ ] Sender name မှန်ပြီး SPF/DKIM/DMARC ပြင်ဆင်ထားသည်။
 
-unless explicitly required.
+## 12. Branding နှင့် Localization
 
-## 10. Login and Authentication
+- [ ] Application name, Logo, Primary color, Public URL နှင့် Login text မှန်သည်။
+- [ ] Required Languages နှင့် Unicode text မှန်ကန်စွာပြသည်။
+- [ ] Branding ပြောင်းပြီး Browser Hard Refresh စမ်းထားသည်။
+- [ ] Translation/Branding ကို Permanent Custom App ထဲတွင် ထိန်းထားသည်။
 
-- [ ] Password login works.
-- [ ] Email link login policy is decided.
-- [ ] Two Factor Authentication policy is decided.
-- [ ] SSO plan is documented if used.
-- [ ] Backup admin can still login without SSO dependency.
-- [ ] Disabled users cannot login.
-- [ ] Password reset/email flow is tested.
+## 13. Application Data
 
-Recommended:
-
-```text
-Pilot: local login first
-Production: SSO only after testing with a small group
-Always keep one emergency admin account
-```
-
-## 11. Email and Notifications
-
-- [ ] Outgoing email account is configured.
-- [ ] Test email sends successfully.
-- [ ] Password reset email is received.
-- [ ] Important workflow notifications are tested.
-- [ ] Email sender name is correct.
-- [ ] SPF/DKIM/DMARC are planned for the sending domain.
-
-Do not launch notification-heavy workflows before email is tested.
-
-## 12. Branding and Localization
-
-- [ ] Application name is correct.
-- [ ] Logo is correct.
-- [ ] Primary color is correct.
-- [ ] Public URL is correct.
-- [ ] Login page text is reviewed.
-- [ ] Required languages display correctly.
-- [ ] Browser hard refresh tested after branding changes.
-- [ ] Translation CSV changes are in a permanent custom app or documented as test-only.
-
-Recommended:
-
-```text
-Keep core app source clean
-Put project-specific translations and branding in a custom app
-Use Unicode for non-English content
-```
-
-## 13. Application Data Readiness
-
-- [ ] Production master data is reviewed.
-- [ ] Test records are hidden or removed.
-- [ ] Required records are created.
-- [ ] Required workflows are tested.
-- [ ] File attachments open correctly.
-- [ ] Public/private file behavior is tested.
-- [ ] Print formats or exported documents are tested if used.
-- [ ] User access rules are correct.
-
-Avoid using sample/demo records in production.
+- [ ] Production Master Data/Required Records/Workflows ပြည့်စုံသည်။
+- [ ] Demo/Test Records ကို ဖယ်ရှား သို့မဟုတ် ဖုံးထားသည်။
+- [ ] Attachments, Public/Private Files, Print Formats/Exports စမ်းထားသည်။
+- [ ] User access rules မှန်သည်။
 
 ## 14. Access Control
 
-- [ ] Private/internal access is confirmed.
-- [ ] Public pages are intentional.
-- [ ] Restricted records are protected.
-- [ ] Users can see only allowed content.
-- [ ] Managers have only required permissions.
-- [ ] Admin-only menu items are hidden from normal users.
-- [ ] Permission changes are tested with real user accounts.
+- [ ] Public/Internal/Private pages များကို ရည်ရွယ်ချက်အတိုင်းခွဲထားသည်။
+- [ ] Restricted Records ကို Server-side Permission ဖြင့် ကာကွယ်ထားသည်။
+- [ ] Managers/Admins တွင် လိုအပ်သော Permission သာရှိသည်။
+- [ ] Admin-only Menu ကို Normal User မမြင်နိုင်ပါ။
+- [ ] Permission ကို User accounts အမှန်ဖြင့် စမ်းထားသည်။
 
-Recommended:
+## 15. File Uploads နှင့် Storage
 
-```text
-Normal users use application pages
-Administrators use /desk
-```
-
-## 15. File Uploads and Storage
-
-- [ ] Upload size limit is suitable.
-- [ ] Large file upload is tested.
-- [ ] File storage strategy is decided.
-- [ ] Private file access is tested.
-- [ ] Public file access is tested.
-- [ ] Disk free space is checked.
-- [ ] Backup includes uploaded files.
-
-Current compose value:
+- [ ] Upload size limit နှင့် File storage strategy ကို ဆုံးဖြတ်ထားသည်။
+- [ ] Large File, Private File, Public File Upload/Open/Download စမ်းထားသည်။
+- [ ] Disk/Object Storage capacity လုံလောက်ပြီး Backup တွင် Files ပါသည်။
 
 ```yaml
 CLIENT_MAX_BODY_SIZE: 50m
 ```
 
-Increase only if large uploads are required.
+လိုအပ်မှသာ Limit တိုးပါ။
 
-## 16. Performance Checks
+## 16. Performance
 
-- [ ] `docker stats` checked under normal usage.
-- [ ] Login page loads quickly.
-- [ ] Main application pages load quickly.
-- [ ] Large list/report pages are tested.
-- [ ] File upload/download is tested.
-- [ ] Background workers are running.
-- [ ] Scheduler is running.
-
-Useful command:
+- [ ] Login/Main pages/List/Report pages များ လက်ခံနိုင်သောအမြန်နှုန်းရှိသည်။
+- [ ] File Upload/Download, Workers နှင့် Scheduler အလုပ်လုပ်သည်။
+- [ ] Normal/Expected Load အောက်တွင် CPU, Memory, Disk, Queue ကိုစစ်ထားသည်။
 
 ```bash
 docker stats
 ```
 
-If memory usage is near limits, increase resources before launch.
+## 17. Security
 
-## 17. Security Review
-
-- [ ] Server firewall is enabled.
-- [ ] Only required ports are open.
-- [ ] Database is not publicly exposed.
-- [ ] Admin passwords are strong.
-- [ ] Default accounts are removed or secured.
-- [ ] Backups are protected.
-- [ ] Git secrets are removed.
-- [ ] HTTPS is active.
-- [ ] Security headers are reviewed in reverse proxy.
-- [ ] Server SSH access is restricted.
-
-Recommended public ports:
+- [ ] Firewall ဖွင့်ထားပြီး Required ports သာ Allow လုပ်ထားသည်။
+- [ ] Database/Redis/Internal Services Public မဖွင့်ထားပါ။
+- [ ] Default Accounts/Passwords ကိုဖယ်ရှား သို့မဟုတ် Secure လုပ်ထားသည်။
+- [ ] Backups/Secrets ကာကွယ်ထားပြီး HTTPS အလုပ်လုပ်သည်။
+- [ ] Reverse Proxy Security Headers နှင့် Restricted SSH စစ်ထားသည်။
 
 ```text
-80  -> redirect to HTTPS
-443 -> HTTPS
-22  -> SSH, restricted
+Public: 80 (HTTPS redirect), 443 (HTTPS)
+Restricted: 22 (SSH)
+Private: 3306/3307, 8080, 8787, Redis and MinIO admin ports
 ```
 
-Avoid exposing:
+## 18. Monitoring နှင့် Logs
 
-```text
-3306 / 3307
-8080
-8787
-9000
-```
-
-unless intentionally restricted.
-
-## 18. Monitoring and Logs
-
-- [ ] Docker logs are rotating.
-- [ ] Error logs are checked.
-- [ ] Backup logs are checked.
-- [ ] Disk usage is monitored.
-- [ ] Admin knows how to view logs.
-- [ ] Alerting plan exists for disk full or service down.
-
-Useful commands:
+- [ ] Docker Log rotation, Error Logs, Backup Logs နှင့် Disk usage စောင့်ကြည့်သည်။
+- [ ] Operator က Logs ကြည့်နည်းသိပြီး Service-down/Disk-full Alerts ရှိသည်။
 
 ```bash
-docker compose logs -f frontend
-docker compose logs -f backend
-docker compose logs -f queue-long
-docker compose logs -f scheduler
+./ops.sh status
+./ops.sh logs
+./ops.sh logs backend --follow
 ```
 
-## 19. Upgrade and Rollback
+## 19. Upgrade နှင့် Rollback
 
-- [ ] Current Git commit is recorded.
-- [ ] Current Docker image tag is recorded.
-- [ ] Current `apps.json` app versions are recorded.
-- [ ] Backup is taken before update.
-- [ ] Rollback steps are documented.
-- [ ] Update was tested outside production.
-- [ ] Database migration was tested before production.
-
-Before changing app versions:
+- [ ] Current Git Commit, Docker image Tag နှင့် App versions မှတ်တမ်းရှိသည်။
+- [ ] Update မတိုင်မီ Backup ယူထားသည်။
+- [ ] Rollback steps ရေးထားပြီး Update/Migration ကို Non-production တွင် စမ်းထားသည်။
 
 ```text
-backup -> rebuild/update -> migrate -> smoke test
+backup -> build/deploy -> migrate -> smoke test -> verify
 ```
 
-Never run cleanup scripts on production unless data deletion is intentional.
+Data deletion ကို ရည်ရွယ်ပြီး အတည်ပြုခြင်းမရှိဘဲ Production တွင်
+`cleanup.sh` မသုံးပါနှင့်။
 
 ## 20. Go-Live Smoke Test
 
-- [ ] Open the production URL.
-- [ ] Login as Administrator.
-- [ ] Login as application administrator.
-- [ ] Login as normal user.
-- [ ] Open main application pages.
-- [ ] Create or update a test record if allowed.
-- [ ] Open an existing production record.
-- [ ] Upload or open a file if the app uses files.
-- [ ] Trigger a workflow or background job if used.
-- [ ] Logout works.
-- [ ] Password reset works.
-- [ ] Mobile browser tested if users need mobile access.
+- [ ] Production URL ဖွင့်၍ Administrator/Application Admin/Normal User ဖြင့် Login ဝင်သည်။
+- [ ] Main pages နှင့် Existing Record များဖွင့်သည်။
+- [ ] ခွင့်ပြုထားလျှင် Test Record Create/Update လုပ်သည်။
+- [ ] File Upload/Open, Workflow/Background job, Logout/Password Reset စမ်းသည်။
+- [ ] လိုအပ်ပါက Mobile Browser စမ်းသည်။
 
-## 21. Launch Day Checklist
+## 21. Launch Day
 
-- [ ] Backup completed.
-- [ ] Reverse proxy running.
-- [ ] HTTPS certificate valid.
-- [ ] Docker containers healthy.
-- [ ] Email test passed.
-- [ ] Admin support contact ready.
-- [ ] User guide shared.
-- [ ] Known issues documented.
-- [ ] Rollback plan ready.
-
-Container health:
+- [ ] Backup, Reverse Proxy, HTTPS နှင့် Container Health အောင်မြင်သည်။
+- [ ] Email Test အောင်မြင်သည်။
+- [ ] Support contact, User Guide, Known Issues နှင့် Rollback Plan အဆင်သင့်ဖြစ်သည်။
 
 ```bash
 docker compose ps
 ```
 
-## 22. Post-Launch Checklist
+## 22. Go-Live ပြီးနောက်
 
-- [ ] Monitor logs for first 24 hours.
-- [ ] Check failed login attempts.
-- [ ] Check email delivery.
-- [ ] Check user access issues.
-- [ ] Collect user feedback.
-- [ ] Review memory and disk usage.
-- [ ] Confirm daily backup ran.
-- [ ] Schedule first production maintenance window.
+- [ ] ပထမ 24 နာရီ Logs, Failed Logins, Email delivery နှင့် User access စောင့်ကြည့်သည်။
+- [ ] User Feedback, Memory/Disk usage နှင့် Daily Backup အောင်မြင်မှု စစ်သည်။
+- [ ] ပထမ Production Maintenance window သတ်မှတ်သည်။
 
 ## Final Approval
 
-Production launch should proceed only when these are confirmed:
-
-- [ ] HTTPS works.
-- [ ] Backup and restore are proven.
-- [ ] Admin and normal user login are tested.
-- [ ] Access permissions are correct.
-- [ ] No default passwords are used.
-- [ ] No secrets are committed to Git.
-- [ ] Rollback plan is ready.
-
-Approved by:
+- [ ] HTTPS အလုပ်လုပ်သည်။
+- [ ] Backup နှင့် Restore အတည်ပြုပြီးဖြစ်သည်။
+- [ ] Admin/Normal User Login နှင့် Permissions မှန်သည်။
+- [ ] Default Password နှင့် Git ထဲဝင်နေသော Secret မရှိပါ။
+- [ ] Rollback Plan အဆင်သင့်ဖြစ်သည်။
 
 ```text
 Name:

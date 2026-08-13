@@ -1,18 +1,29 @@
-# External MariaDB
+# External MariaDB အသုံးပြုခြင်း
 
-This setup supports either the bundled MariaDB container or a separate MariaDB
-server. The default remains local so existing installations continue to work.
+ဒီ project က Docker Compose ထဲက bundled Local MariaDB သို့မဟုတ် သီးခြား
+Database Server ပေါ်က External MariaDB နှစ်မျိုးလုံးကို support လုပ်ပါတယ်။
+Existing installation တွေမပျက်စေရန် Default က Local Database ဖြစ်ပါတယ်။
 
-For commands to install, secure, firewall, back up, and monitor MariaDB on a
-separate Ubuntu VM, follow
-[External MariaDB on an Ubuntu VM](external-database-ubuntu.md). That document
-is the canonical step-by-step procedure for a fresh first setup. This document
-remains the canonical guide for connection modes, existing-site migration, and
-rollback.
+အသစ်စတင်သည့် Fresh First Setup အတွက် MariaDB install, security, Firewall နဲ့
+`.env` configuration ကို
+[External MariaDB on Ubuntu](external-database-ubuntu.md) မှာ တစ်ဆင့်ချင်း
+ဖတ်နိုင်ပါတယ်။ ဒီ document က Database Mode ရွေးချယ်ခြင်း၊ Existing Site
+Migration၊ Rollback နဲ့ Credential Repair အတွက် အဓိက reference ဖြစ်ပါတယ်။
 
-## Modes
+## ဘယ် Guide ကိုသုံးရမလဲ
 
-Use the bundled database:
+| လက်ရှိအခြေအနေ | သုံးရမည့်နည်း |
+|---|---|
+| Site နဲ့ Site Database လုံးဝမရှိသေး | Fresh First Setup guide |
+| Local MariaDB ထဲမှာ လက်ရှိ Site Data ရှိပြီးသား | ဒီ document ရဲ့ Existing Site Migration |
+| Database export/import လုပ်ပြီးသား | Existing Site Migration နဲ့ Verification |
+| Database Client ကနေဝင်လို | [Database Client Access](database-client-access.md) |
+
+> `DB_HOST` ပြောင်းရုံနဲ့ Database Data ကို copy သို့မဟုတ် migrate မလုပ်ပါ။
+
+## Database Modes
+
+### Bundled Local MariaDB
 
 ```env
 DATABASE_MODE=local
@@ -20,108 +31,191 @@ DB_HOST=db
 DB_PORT=3306
 ```
 
-Use a separate database server:
+ဒီ mode မှာ App Services နဲ့ MariaDB က Docker Compose Network တစ်ခုတည်းထဲမှာ
+ရှိပြီး `db` Service Name ကို Host အဖြစ်သုံးပါတယ်။
+
+### External MariaDB
 
 ```env
 DATABASE_MODE=external
-DB_HOST=private-db.example.internal
+DB_HOST=<DB_PRIVATE_IP_OR_INTERNAL_DNS>
 DB_PORT=3306
 DB_ROOT_USERNAME=frappe_provisioner
-DB_ROOT_PASSWORD=replace-with-a-strong-secret
+DB_ROOT_PASSWORD=<STRONG_PROVISIONER_PASSWORD>
 DB_NAME=
-DB_PASSWORD=replace-with-a-strong-site-password
+DB_PASSWORD=<STRONG_SITE_DATABASE_PASSWORD>
 ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=false
 ```
 
-`DB_HOST` must resolve and be reachable from both the application host and the
-Frappe containers. Do not use `localhost` or `127.0.0.1`: inside a container,
-those addresses refer to the container itself.
+`DB_HOST` ကို App Server နဲ့ Frappe Containers နှစ်ခုလုံးက resolve/connect
+လုပ်နိုင်ရပါမယ်။ `localhost` သို့မဟုတ် `127.0.0.1` မသုံးပါနှင့်။ Container
+အတွင်းက အဲဒီ address တွေဟာ Container ကိုယ်တိုင်ကို ရည်ညွှန်းပါတယ်။
+
+### `.env` variables ရဲ့တာဝန်
+
+| Variable | အသုံးပြုပုံ |
+|---|---|
+| `DATABASE_MODE` | `local` သို့မဟုတ် `external` ရွေးပေးတယ် |
+| `DB_HOST` | Frappe ကချိတ်မည့် Database Server address |
+| `DB_PORT` | MariaDB TCP Port |
+| `DB_ROOT_USERNAME` | Fresh Site provisioning သို့မဟုတ် controlled repair အတွက် privileged User |
+| `DB_ROOT_PASSWORD` | Provisioning User Password |
+| `DB_NAME` | Fresh Site ဖန်တီးချိန် သုံးမည့် Database Name; အလွတ်ထားလျှင် Frappe က generate လုပ်တယ် |
+| `DB_PASSWORD` | Fresh Site Runtime Database User Password |
+| `ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR` | External credential automatic repair ကို explicit ခွင့်ပြုမပြု |
+
+Existing Site အတွက် Runtime Database Name, User နဲ့ Password ကို
+`sites/<SITE_NAME>/site_config.json` ကဆုံးဖြတ်ပါတယ်။ `.env` ထဲက `DB_NAME` နဲ့
+`DB_PASSWORD` ပြောင်းခြင်းက Existing Site ရဲ့ credentials ကို အလိုအလျောက်
+မပြောင်းပါ။
 
 ## Database Server Requirements
 
-- Use a MariaDB release compatible with the deployed Frappe version. The
-  current Frappe `version-16` requirement is MariaDB 11.8; recheck the official
-  Frappe installation requirements before provisioning or upgrading.
-- Configure `utf8mb4` and `utf8mb4_unicode_ci`.
-- Allow TCP connections only from the application server's private IP or
-  private network.
-- Do not expose port 3306 to the public internet.
-- Use a dedicated provisioning account instead of remote root where possible.
-- Give the runtime site user access only to its own database.
-- Enable transport encryption when traffic crosses an untrusted network.
-- Operate independent database backups and restore tests on the DB server.
+- Deploy ထားသည့် Frappe version နဲ့ compatible ဖြစ်သော MariaDB release သုံးပါ။
+  ဒီ project ရဲ့ Frappe `version-16` setup က MariaDB `11.8` ကိုရည်ရွယ်ထားပါတယ်။
+  Provisioning သို့မဟုတ် Upgrade မလုပ်မီ official requirements ကိုပြန်စစ်ပါ။
+- Character Set ကို `utf8mb4` နဲ့ Collation ကို `utf8mb4_unicode_ci` သုံးပါ။
+- MariaDB TCP Connection ကို App Server Private IP သို့မဟုတ် approved Private
+  Network ကနေပဲ Allow လုပ်ပါ။
+- Port `3306` ကို Public Internet သို့မဖွင့်ပါနှင့်။
+- Remote `root` အစား Temporary Provisioning User သုံးပါ။
+- Frappe Runtime User ကို သူ့ Site Database တစ်ခုတည်းအတွက် Permission ပေးပါ။
+- Untrusted Network ကိုဖြတ်ရပါက Transport Encryption သုံးပါ။
+- Database Server အတွက် independent Backup နဲ့ Restore Test ထားပါ။
 
-The provisioning user needs permission to create the site database and user
-during `bench new-site`. It can be removed from the application `.env` after a
-fresh site has been created if no automated credential repair is required.
+Temporary Provisioning User က `bench new-site` အချိန်မှာ Site Database နဲ့
+Runtime User ဆောက်ရန်လိုအပ်ပါတယ်။ Fresh Setup နဲ့ Verification အောင်မြင်ပြီး
+Automated Credential Repair မလိုတော့ပါက ဒီ User ကိုဖျက်နိုင်ပါတယ်။
 
 ## Fresh Site
 
-1. Provision the external MariaDB server and private firewall rule. For Ubuntu,
-   use [the Ubuntu VM guide](external-database-ubuntu.md).
-2. Set `DATABASE_MODE=external` and the external database variables in `.env`.
-3. Run `./setup.sh` and verify the displayed database target before typing
-   `SETUP`.
-4. Verify login, record creation, background jobs, backup, and restore.
+Fresh Site ဆိုတာ App Server မှာ Site Directory မရှိသေးသလို External MariaDB
+မှာလည်း Target Site Database သို့မဟုတ် Imported Data မရှိသေးတာကိုဆိုလိုပါတယ်။
 
-In external mode, `setup.sh` starts the Frappe and Redis services without
-starting the local `db` service. It validates TCP reachability first. Fresh site
-creation then validates the administrative credentials.
+1. External MariaDB Server နဲ့ Private Firewall Rule ကိုပြင်ဆင်ပါ။ Ubuntu
+   အတွက် [First Setup Guide](external-database-ubuntu.md) ကိုလိုက်နာပါ။
+2. `.env` မှာ `DATABASE_MODE=external` နဲ့ External Database variables ထည့်ပါ။
+3. `./setup.sh` run ပြီး Summary ထဲက Database Target ကိုစစ်ပါ။
+4. မှန်မှ `SETUP` လို့ Confirm လုပ်ပါ။
+5. Login, Record Create/Read, Background Jobs, Backup နဲ့ Restore Test စစ်ပါ။
 
-If a local `db` container was already running before the switch, setup leaves it
-untouched for rollback. After external validation, it may be stopped without
-deleting its volume:
+External Mode မှာ `setup.sh` က Local `db` Service ကို မစတင်ဘဲ Frappe, Redis
+နဲ့ Workers ကိုစတင်ပါတယ်။ Site မဆောက်မီ Network Reachability နဲ့ Provisioning
+Credentials ကို Preflight စစ်ပါတယ်။
+
+Local `db` Container ရှိပြီးသားကနေ External Mode ပြောင်းလျှင် Setup က Rollback
+အတွက် Local Database Volume ကို အလိုအလျောက်မဖျက်ပါ။ External Database ကို
+အပြည့်အဝ Verify လုပ်ပြီးမှ Local `db` Service ကို Data မဖျက်ဘဲ ရပ်နိုင်ပါတယ်။
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml stop db
 ```
 
+<a id="existing-site-migration"></a>
+
 ## Existing Site Migration
 
-Use a maintenance window. Changing `DB_HOST` does not copy existing data.
+Existing Site Migration ကို approved Maintenance Window အတွင်းလုပ်ပါ။ ဒီ
+procedure ရဲ့ရည်ရွယ်ချက်က Final Backup ယူနေချိန်နဲ့ Database Import လုပ်နေချိန်
+မှာ Application Write အသစ်မဝင်စေရန်ဖြစ်ပါတယ်။
 
-1. Keep the current stack in `DATABASE_MODE=local` and run `./backup.sh`.
-2. Verify that the backup contains a non-empty database dump and both file
-   archives. Keep the local DB volume unchanged for rollback.
-3. Enable Frappe maintenance mode and stop the scheduler and queue workers so
-   no writes occur during the final dump.
-4. Take a final backup and import its `*-database.sql.gz` into the external
-   database.
-5. Create the external site database user with the same database name and
-   password stored in the site's `site_config.json`, granting access only to
-   that database.
-6. Set `DATABASE_MODE=external`, `DB_HOST`, `DB_PORT`, and external admin
-   credentials in `.env`.
-7. Run `./setup.sh --reconfigure`. The explicit flag permits setup to update
-   `common_site_config.json` for the existing site; setup aborts if the site
-   cannot authenticate to the target, and migration failure is fatal.
-8. Run `./ops.sh status`, then verify login, read/write operations, workers,
-   scheduler, file access, backup, and a test restore.
-9. Disable maintenance mode only after all checks pass.
+### Migration မစခင် စုဆောင်းထားရမည့်အချက်များ
 
-Do not run `cleanup.sh` while the old local DB volume is being retained for
-rollback because cleanup intentionally removes project Docker volumes.
+- `SITE_DOMAIN`
+- လက်ရှိ `site_config.json` ထဲက `db_name` နဲ့ `db_user`
+- Local Database Backup နဲ့ Files Backup
+- External Database Server address နဲ့ approved Firewall Rule
+- Rollback အတွက် လက်ရှိ Local Database Volume
+- Maintenance Window နဲ့ responsible operator
+
+Password ကို Terminal output, Documentation သို့မဟုတ် Screenshot ထဲ
+မထုတ်ပါနှင့်။
+
+### Migration Procedure
+
+1. `.env` ကို `DATABASE_MODE=local` အတိုင်းထားပြီး `./backup.sh` run ပါ။
+2. Backup ထဲမှာ non-empty Database dump, Public Files နဲ့ Private Files
+   archives ပါကြောင်း Verify လုပ်ပါ။ Rollback အတွက် Local Database Volume ကို
+   မပြောင်းဘဲထားပါ။
+3. Maintenance Mode ဖွင့်ပြီး Scheduler နဲ့ Queue Workers ကိုရပ်ပါ။ ဒီလိုလုပ်တာက
+   Final Dump ယူနေစဉ် Write အသစ်မဝင်စေရန်ဖြစ်ပါတယ်။
+4. Final Backup ယူပြီး `*-database.sql.gz` ကို External Database ထဲ Import
+   လုပ်ပါ။
+5. External Database မှာ `site_config.json` ထဲက Database Name, Runtime User
+   နဲ့ Password အတိုင်း Account ဆောက်ပါ။ Runtime User ကို အဲဒီ Database
+   တစ်ခုတည်းအတွက် Permission ပေးပါ။
+6. `.env` မှာ `DATABASE_MODE=external`, `DB_HOST`, `DB_PORT` နဲ့ controlled
+   Reconfiguration အတွက်လိုအပ်သည့် admin credentials ကိုထည့်ပါ။
+7. `./setup.sh --reconfigure` run ပါ။ ဒီ explicit flag က Existing Site အတွက်
+   `common_site_config.json` ကို External Host သို့ပြောင်းခွင့်ပေးပါတယ်။ Site က
+   Target Database ကို authenticate မလုပ်နိုင်ရင် Setup ရပ်သွားပါမယ်။
+8. `./ops.sh status` run ပြီး Services, Site နဲ့ Database Connection အားလုံး
+   `[PASS]` ဖြစ်ကြောင်းစစ်ပါ။
+9. Login, Record Read/Write, Background Jobs, Scheduler, File Access, Backup
+   နဲ့ Test Restore ကိုစစ်ပါ။
+10. စစ်ဆေးချက်အားလုံးအောင်မှ Maintenance Mode ပိတ်ပါ။
+
+Migration အတွင်း Rollback အတွက် Local Database Volume ကိုထားရှိနေသရွေ့
+`cleanup.sh` မ run ပါနှင့်။ `cleanup.sh` က project Docker Volumes ကိုဖျက်နိုင်ပါတယ်။
+
+## Verification Checklist
+
+- [ ] App Server က `<DB_PRIVATE_IP>:3306` ကို `nc` Test အောင်ပါတယ်။
+- [ ] `common_site_config.json` မှာ External `db_host` နဲ့ `db_port` မှန်ပါတယ်။
+- [ ] `site_config.json` ထဲက `db_name` နဲ့ `db_user` က Imported Database နဲ့
+      ကိုက်ညီပါတယ်။
+- [ ] `bench --site <SITE_NAME> list-apps` အောင်ပါတယ်။
+- [ ] Administrator Login အောင်ပါတယ်။
+- [ ] Test Record Create, Read နဲ့ Update အောင်ပါတယ်။
+- [ ] Scheduler နဲ့ Queue Workers running ဖြစ်ပါတယ်။
+- [ ] Public/Private Files ဖွင့်နိုင်ပါတယ်။
+- [ ] External Database ကိုအသုံးပြုပြီး Backup အသစ်ယူနိုင်ပါတယ်။
+- [ ] Restore Procedure ကို Test Environment မှာစမ်းပြီးပါပြီ။
 
 ## Rollback
 
-Before accepting new production writes on the external database:
+### External Database မှာ Production Write မစသေးခင်
 
-1. Set `DATABASE_MODE=local`, `DB_HOST=db`, and `DB_PORT=3306`.
-2. Run `./setup.sh --reconfigure` to reconnect the application to the untouched
-   local DB.
-3. Verify the site and then disable maintenance mode.
+1. `.env` မှာ `DATABASE_MODE=local`, `DB_HOST=db`, `DB_PORT=3306` ပြန်ထားပါ။
+2. `./setup.sh --reconfigure` run ပြီး Application ကို မပြောင်းထားသည့် Local
+   Database ပြန်ချိတ်ပါ။
+3. `./ops.sh status` နဲ့ functional tests အောင်မှ Maintenance Mode ပိတ်ပါ။
 
-After external writes begin, switching back to the old local database loses
-those newer writes. A later rollback requires a reverse migration or restore.
+### External Database မှာ Write အသစ်ဝင်ပြီးနောက်
+
+Old Local Database ကို တန်းပြန်ချိတ်ပါက External Database ပေါ်ရောက်ပြီးသား
+Record အသစ်တွေ ပျောက်သွားပါမယ်။ ဒီအခြေအနေမှာ Reverse Migration သို့မဟုတ်
+Verified Backup Restore လိုအပ်ပါတယ်။ Database နဲ့ Code Version compatibility
+ကိုစစ်ပြီး approved Recovery Plan နဲ့သာလုပ်ပါ။
 
 ## Credential Repair
 
-Automatic credential repair is disabled for external databases by default:
+External Database အတွက် Automatic Credential Repair ကို Default အနေနဲ့
+ပိတ်ထားပါတယ်။
 
 ```env
 ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=false
 ```
 
-Enable it only during a controlled repair after confirming the configured
-provisioning account and target host. The repair helper never prints passwords
-and grants the site user access only to its own database.
+အောက်ပါအချက်တွေကို အတည်ပြုပြီး controlled repair အတွင်းမှသာ ခဏဖွင့်ပါ:
+
+- `DB_HOST` နဲ့ `DB_PORT` က Target Database Server အမှန်ဖြစ်ခြင်း
+- `DB_ROOT_USERNAME` က approved Provisioning User ဖြစ်ခြင်း
+- Runtime Database Name နဲ့ User ကို Backup/`site_config.json` ဖြင့်
+  အတည်ပြုပြီးဖြစ်ခြင်း
+- Maintenance Window နဲ့ verified Backup ရှိခြင်း
+
+Repair helper က Password ကို print မလုပ်ဘဲ Site Runtime User ကို သူ့ Database
+တစ်ခုတည်းအတွက် Permission ပေးပါတယ်။ Repair ပြီးလျှင်
+`ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=false` ပြန်ထားပြီး မလိုတော့သည့်
+Provisioning Credentials ကို `.env` မှဖယ်ရှားပါ။
+
+## လုံခြုံရေးသတိပေးချက်
+
+- Database Port ကို `0.0.0.0/0` အတွက် မဖွင့်ပါနှင့်။
+- Provisioning User ကို Daily Workbench Access အတွက် မသုံးပါနှင့်။
+- Database Runtime User ကို Application အပြင်ဘက် မမျှဝေပါနှင့်။
+- `.env`, `site_config.json`, Database Dump နဲ့ Private Files Backup ကို Secret
+  Data အဖြစ်ထိန်းသိမ်းပါ။
+- Database Record သို့မဟုတ် Docker Volume ကို Troubleshooting shortcut အဖြစ်
+  မဖျက်ပါနှင့်။

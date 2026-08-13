@@ -1,327 +1,146 @@
-# changAI Setup Guide
+# changAI Setup လမ်းညွှန်
 
-## 🤖 AI Chat Integration Setup
+Frappe/ERPNext တွင် changAI AI Chat integration ပြင်ဆင်ခြင်း၊ Training လုပ်ခြင်း၊
+စမ်းသပ်ခြင်းနှင့် ထိန်းသိမ်းခြင်းတို့အတွက် လမ်းညွှန်ဖြစ်သည်။ Third-party App/API
+၏ UI, Model availability, Pricing နှင့် Data processing terms များ ပြောင်းနိုင်သဖြင့်
+Production မဖွင့်မီ သက်ဆိုင်ရာ Official Documentation ကို ပြန်စစ်ပါ။
 
-This guide covers the complete setup and configuration of **changAI** - AI-powered chat interface for ERPNext.
+## လိုအပ်ချက်များ
 
----
+- Frappe v16 Environment အလုပ်လုပ်ပြီး changAI App Install လုပ်ထားသည်။
+- Approved Google Cloud Project ရှိသည်။
+- လိုအပ်သော Gemini/Vertex AI API ကို Enable လုပ်ထားသည်။
+- Data Privacy, Cost limit နှင့် User Permission policy ကို အတည်ပြုထားသည်။
 
-## 📋 Prerequisites
+## 1. Google Cloud Credentials
 
-- ✅ **Frappe v16** setup completed
-- ✅ **changAI app** installed via apps.json
-- ✅ **Google Cloud Project** created
-- ✅ **Vertex AI API** enabled
+1. [Google AI Studio](https://aistudio.google.com/app/apikey) တွင် **Create API
+   Key** နှိပ်၍ Key ထုတ်ပါ။
+2. Google Cloud Console မှ Project ID/Number ကို မှတ်ထားပါ။
+3. သက်ဆိုင်ရာ Project အတွက် [Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com)
+   ကိုလိုအပ်ပါက Enable လုပ်ပြီး Activation အချိန်ပေးပါ။
 
----
+API Key/Service Account JSON ကို Git, Documentation, Screenshot သို့မဟုတ် Log
+ထဲ မထည့်ပါနှင့်။ Key leakage ဖြစ်ပါက ချက်ချင်း Revoke/Rotate လုပ်ပါ။
 
-## 🔧 Configuration Steps
+## 2. changAI Settings
 
-### Step 1: Get Google Cloud Credentials
+Frappe Desk တွင် **changAI Settings** ကိုရှာဖွင့်ပါ။ App Version က Support
+လုပ်သော Authentication mode ကိုရွေးပါ။
 
-#### A. Get Gemini API Key (Free Tier)
-1. Go to: https://aistudio.google.com/app/apikey
-2. Sign in with Google account
-3. Click **"Create API Key"**
-4. Copy the generated key (starts with `AIza...`)
+### API Key Mode
 
-#### B. Get Project ID
-1. In the same API page, find your **Project ID/Number**
-2. Note the project number (e.g., `371884246679`)
-
-#### C. Enable Vertex AI API
-1. Go to: https://console.developers.google.com/apis/api/aiplatform.googleapis.com/overview?project=YOUR_PROJECT_ID
-2. Click **"Enable"**
-3. Wait 2-5 minutes for activation
-
-### Step 2: Configure changAI Settings
-
-#### Access Settings
-1. Login to ERPNext: `http://localhost:8000`
-2. Search for **"changAI Settings"**
-3. Open the settings page
-
-#### Authentication Configuration
-
-**Option A: Free Tier (Recommended)**
-```
-✅ Gemini API Key: Your API key from AI Studio
-✅ Gemini Project ID: Your project number (e.g., 371884246679)
-✅ Gemini_location: us-central1 (or us-east1)
-❌ Service Account Credential: Leave empty
+```text
+Gemini API Key: <secret-api-key>
+Gemini Project ID: <project-id>
+Gemini_location: us-central1
+Service Account Credential: leave empty
 ```
 
-**Option B: Service Account (Advanced)**
-```
-✅ Gemini API Key: Your API key
-✅ Gemini Project ID: Your project number
-✅ Gemini_location: us-central1
-✅ Service Account Credential: JSON content from service account
-```
+### Service Account Mode
 
-### Step 3: Model Setup
-
-#### Download Embedding Model
-1. In changAI Settings, click **"Download Embedding Model"**
-2. Wait for download to complete (2-5 minutes)
-3. Verify success message
-
-#### Update Master Data
-1. Go to **"Training"** tab
-2. Click **"Update Master Data"**
-3. Wait for sync to complete
-
----
-
-## 🎯 Training Setup Guide (Step-by-Step)
-
-This section shows how to properly train changAI with your ERPNext data for best performance.
-
-### 📋 Training Configuration Steps
-
-#### Step 1: Access Training Tab
-1. In ERPNext, search for **"changAI Settings"**
-2. Click the **"Training"** tab
-3. You'll see the training configuration interface
-
-#### Step 2: Set Record Size
-```
-Field: "Choose a record size between 1000 to 1500"
-Recommended: 1000 (for initial setup)
-Action: Enter "1000" in the field
+```text
+Gemini API Key: <secret-api-key-if-required>
+Gemini Project ID: <project-id>
+Gemini_location: us-central1
+Service Account Credential: <service-account-json>
 ```
 
-#### Step 3: Create Training Data
-```
-Button: "Create training data"
-Action: Click this button
-Wait: 1-2 minutes for completion
-Result: Base training data is generated
-```
+Production Service Account ကို Least-privilege Role ပေးပြီး Key rotation policy
+ထားပါ။ Region ကို Data residency/policy နှင့် Model availability အရရွေးပါ။
 
-#### Step 4: Configure Training Modules
-```
-Table: "Module and Description"
-Default modules: HR, CRM
-Recommended additions:
-- Sales - အရောင်းအဝယ်စနစ်
-- Stock - စတောင်းစုံး
-- Accounts - ငွေရေးကြေးရေး
-- Projects - စီမံကိန်းများ
+## 3. Model Setup
 
-Action: Click "Add row" to add more modules
-```
+1. **Download Embedding Model** နှိပ်ပြီး Success message ရသည်အထိစောင့်ပါ။
+2. **Training** Tab တွင် **Update Master Data** နှိပ်ပါ။
+3. Logs တွင် Error မရှိကြောင်းစစ်ပါ။
 
-#### Step 5: Update Master Data File
-```
-Button: "Update MasterData file"
-Purpose: Sync ERPNext master data with AI
-Action: Click this button
-Wait: 2-5 minutes for completion
-Result: Customer, Item, Supplier data indexed
-```
+Download/Training သည် Network နှင့် Data size အလိုက် မိနစ်အနည်းငယ်ကြာနိုင်သည်။
 
-#### Step 6: Update Schema File
-```
-Button: "Update Schema file"
-Purpose: Update database schema understanding
-Action: Click this button
-Wait: 1-3 minutes for completion
-Result: AI understands your custom fields and doctypes
+## 4. Training Workflow
+
+1. **changAI Settings → Training** ကိုဖွင့်ပါ။
+2. Initial Test အတွက် Record Size `1000` ကဲ့သို့ အနည်းငယ်မှစပါ။
+3. **Create training data** နှိပ်ပြီး ပြီးဆုံးကြောင်းစစ်ပါ။
+4. **Module and Description** Table တွင် လိုအပ်သော Modules ကိုသာ တစ်ဆင့်ချင်း
+   ထည့်ပါ။
+5. **Update MasterData file** နှိပ်၍ Approved Master Data ကို Index လုပ်ပါ။
+6. Custom Fields/DocTypes ပြောင်းထားလျှင် **Update Schema file** နှိပ်ပါ။
+7. **Save** လုပ်ပြီး Test Queries ဖြင့် Permission နှင့် Answer မှန်ကန်မှု စစ်ပါ။
+
+```text
+Set Record Size
+  -> Create Training Data
+  -> Add Approved Modules
+  -> Update MasterData
+  -> Update Schema
+  -> Save
+  -> Permission-aware Test
 ```
 
-#### Step 7: Save Settings
-```
-Button: "Save" (top right)
-Action: Click to save all training configurations
-```
+Master Data/Schema ကို AI Provider သို့ပို့ခြင်းရှိ/မရှိကို App Implementation
+နှင့် Provider settings မှ အတည်ပြုပါ။ Confidential, Personal သို့မဟုတ် Restricted
+Data ကို Approval မရှိဘဲ Training မလုပ်ပါနှင့်။
 
-### 🎯 Complete Training Workflow
+## 5. Verification
 
-```
-1. Set Record Size → 1000
-2. Create Training Data → Wait 1-2 min
-3. Add Modules → HR, CRM, Sales, Stock, Accounts
-4. Update MasterData → Wait 2-5 min
-5. Update Schema → Wait 1-3 min
-6. Save Settings
-7. Test with queries
-```
+သက်ဆိုင်ရာ Module အတွက် Count/List/Status မေးခွန်းများဖြင့်စမ်းပြီး—
 
-### ✅ Verification Steps
+- Authorized User က ခွင့်ပြုထားသော Data ကိုသာ မြင်ခြင်း။
+- Restricted User က Private Record မမြင်ခြင်း။
+- Generated SQL/Query သည် Read-only နှင့် Bounded ဖြစ်ခြင်း။
+- Answer မမှန်လျှင် Source Data/Training Timestamp ကို ဖော်ပြနိုင်ခြင်း။
+- Concurrent Queries အောက်တွင် Acceptable Latency ရှိခြင်း။
 
-After training completion, test with these queries:
+တို့ကို စစ်ပါ။ AI response ကို Financial/Legal/HR decision အဖြစ် Human Review
+မပါဘဲ တိုက်ရိုက်မသုံးပါနှင့်။
 
-```
-"How many customers are there?" → Should show customer count
-"What are our top selling items?" → Should show items
-"Show me pending sales orders" → Should show orders
-"Employee count by department" → Should show HR data
-```
+## 6. Maintenance
 
-### 🔄 Maintenance Schedule
+- Master Data ပြောင်းလဲမှုနှုန်းအလိုက် Weekly/Approved schedule ဖြင့် Update လုပ်ပါ။
+- Custom Schema ပြောင်းပြီး Migration အောင်မြင်မှ Schema file Update လုပ်ပါ။
+- Module list, Answer quality, API usage/Cost နှင့် Audit Logs ကို ပုံမှန်စစ်ပါ။
+- Model/App update ကို Staging တွင် စမ်းပြီးမှ Production Apply လုပ်ပါ။
+- Settings/Custom config ကို Secret-safe Backup ထဲ ထည့်ပြီး Restore စမ်းပါ။
 
-**Weekly Tasks:**
-- Update Master Data (if new records added)
-- Check training accuracy
+Training ကို Peak hour ပြင်ပတွင် run ပြီး Concurrent requests ကန့်သတ်ပါ။
 
-**Monthly Tasks:**
-- Update Schema (if custom fields added)
-- Create new training data
-- Review module list
+## 7. ပြဿနာဖြေရှင်းခြင်း
 
-### ⚠️ Common Training Issues
+### Training/Master Data/Schema Update မအောင်မြင်ခြင်း
 
-#### Training Data Creation Failed
-```
-❌ Problem: "Create training data" fails
-✅ Solution:
-   1. Check API credentials
-   2. Verify internet connection
-   3. Try again after 1 minute
-```
+1. changAI/Backend Logs ကိုစစ်ပါ။
+2. API Credentials, Internet/DNS နှင့် Provider quota စစ်ပါ။
+3. Database access နှင့် User/DocType Permissions စစ်ပါ။
+4. Required Module install/migrate အောင်မြင်ကြောင်းစစ်ပါ။
+5. Record Size ကိုလျှော့၍ Non-production တွင် ထပ်စမ်းပါ။
 
-#### Master Data Update Failed
-```
-❌ Problem: "Update MasterData file" fails
-✅ Solution:
-   1. Check database connection
-   2. Verify permissions
-   3. Ensure modules are installed
-```
+### `403 PERMISSION_DENIED`
 
-#### Schema Update Failed
-```
-❌ Problem: "Update Schema file" fails
-✅ Solution:
-   1. Check custom doctypes
-   2. Verify field permissions
-   3. Restart backend if needed
-```
+- Project ID မှန်ကြောင်းနှင့် Required API Enable ဖြစ်ကြောင်းစစ်ပါ။
+- API activation အချိန်ပေးပြီး Service Account Role/Key status စစ်ပါ။
+- Organization Policy/Region restriction ကို Google Cloud Admin နှင့်စစ်ပါ။
 
-### 🎯 Best Practices
+### `Service Account Credentials are missing`
 
-#### For Best Results:
-1. **Start with small record size** (1000)
-2. **Add modules gradually** (HR → CRM → Sales)
-3. **Test after each step**
-4. **Monitor training time** (should be < 5 minutes each)
-5. **Keep training data updated** (monthly)
+Selected Authentication mode က Service Account လို/မလို စစ်ပါ။ လိုပါက Google
+Cloud တွင် Least-privilege Service Account ဖန်တီး၍ Approved Secret channel မှ
+JSON ထည့်ပါ။
 
-#### Performance Tips:
-- Use **Local Mode** for better privacy
-- **Limit concurrent queries** during training
-- **Schedule training** during off-peak hours
-- **Monitor API usage** with Google Cloud
+### Model Download မအောင်မြင်ခြင်း
 
----
+Container မှ Internet/DNS, Disk space, Provider access နှင့် Credentials ကို
+စစ်ပြီး Logs အရ ပြင်ဆင်ပါ။
 
-## 🚀 Usage
+### Region မရခြင်း
 
-### Basic Queries
-```
-"Customer တွေ ဘယ်လောက်ရှိလဲ?"  # ဖောင်းစုံစမ်း
-"ဒီလ အရောင်းရေးဝင်ငွေ ဘယ်လောက်ရှိလဲ?"  # ဒီလ ရောင်းရေး
-"Item တွေ စုစုံး ဘယ်လောက်ရှိလဲ?"  # စတောင်းစုံး
-"Employee တွေ စုစုံး ဘယ်လောက်ရှိလဲ?"  # ဝန်ထမ်း
-```
+Guess မလုပ်ဘဲ Project အတွက် Model ရသော Region ကို Official Model location
+list မှစစ်ပြီး `Gemini_location` ပြောင်းပါ။ VPN ဖြင့် Provider policy/Regional
+restriction ကို ကျော်ရန် မကြိုးစားပါနှင့်။
 
-### Advanced Features
-- **Multi-language Support**: Configure in changAI Settings
-- **Voice Assistant**: Enable in Voice Settings tab
-- **Debug Mode**: Check generated SQL and processing steps
-- **Custom Training**: Module-specific training data
+## ဆက်စပ် Resources
 
----
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-#### 403 PERMISSION_DENIED Error
-```
-❌ Cause: Vertex AI API not enabled or service account issues
-✅ Solution: 
-   1. Enable Vertex AI API
-   2. Wait 5-10 minutes
-   3. Use correct Project ID
-   4. Try API Key only (Free Tier)
-```
-
-#### Service Account Credentials Missing
-```
-❌ Error: "Service Account Credentials are missing"
-✅ Solution:
-   1. Create service account in Google Cloud
-   2. Grant "Vertex AI User" role
-   3. Generate JSON key
-   4. Copy entire JSON content to changAI Settings
-```
-
-#### Model Download Failed
-```
-❌ Cause: Network issues or insufficient permissions
-✅ Solution:
-   1. Check internet connection
-   2. Verify API credentials
-   3. Retry download
-```
-
-### Location Issues
-```
-❌ Error: "User location is not supported"
-✅ Solution:
-   1. Set Gemini_location to us-central1
-   2. Try us-east1
-   3. Use VPN if needed
-```
-
----
-
-## 🎯 Best Practices
-
-### Performance Optimization
-- Use **Free Tier** for development/testing
-- Cache frequently accessed data
-- Limit concurrent queries
-
-### Security
-- Never share API keys publicly
-- Use service accounts for production
-- Regularly rotate credentials
-
-### Data Privacy
-- **Local Mode**: Keeps data on your server
-- **Permission Aware**: Respects Frappe permissions
-- **Master Data Sync**: Updates with latest ERPNext data
-
----
-
-## 📚 Additional Resources
-
-### Documentation
 - [changAI GitHub](https://github.com/ERPGulf/changAI)
 - [Google AI Studio](https://aistudio.google.com/)
-- [Vertex AI Documentation](https://cloud.google.com/vertex-ai)
-
-### Community Support
+- [Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs)
 - [Frappe Forum](https://discuss.frappe.io/)
-- [changAI Issues](https://github.com/ERPGulf/changAI/issues)
-
----
-
-## 🔄 Updates and Maintenance
-
-### Regular Tasks
-- **Weekly**: Update Master Data
-- **Monthly**: Download updated embedding models
-- **Quarterly**: Review API usage and costs
-
-### Backup Configuration
-- Export changAI settings regularly
-- Document custom configurations
-- Test after major updates
-
----
-
-*Last Updated: April 2026*

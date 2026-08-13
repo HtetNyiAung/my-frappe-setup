@@ -1,243 +1,153 @@
-# Email Setup (Gmail & Outlook)
+# Email Setup လမ်းညွှန် (Gmail နှင့် Outlook)
 
-Frappe **Email Account** form မှာ tab သုံးခု ရှိပါတယ် — **Details**, **Incoming**, **Outgoing**.
+Frappe **Email Account** Form တွင် **Details**, **Incoming**, **Outgoing** Tabs
+သုံးခုရှိသည်။ Password Reset/Notifications ပို့ရန် **Outgoing** လိုပြီး Email
+လက်ခံမှသာ **Incoming** လိုသည်။
 
-**Password reset / forgot password** အတွက် **Outgoing** tab က အရေးကြီးပါတယ်။ Incoming က mail လက်ခံချင်မှ လိုပါတယ်။
+```text
+Setup → Email → Email Account → Add Email Account
+```
 
-Open: **Setup → Email → Email Account → Add Email Account**
+| လိုအပ်ချက် | Enable Incoming | Enable Outgoing | ဖြည့်ရန် Tabs |
+|---|---:|---:|---|
+| Send only | မဖွင့် | ဖွင့် | **Details**, **Outgoing** |
+| Send and Receive | ဖွင့် | ဖွင့် | Tabs သုံးခုလုံး |
 
----
+## 1. Gmail / Google Workspace
 
-## Quick choice
+### မစတင်မီ
 
-| Goal | Enable Incoming | Enable Outgoing | Tabs to fill |
-|------|-----------------|-----------------|--------------|
-| Send only (reset password, notifications) | ✗ | ✓ | **Details** + **Outgoing** |
-| Send and receive email in Frappe | ✓ | ✓ | **Details** + **Incoming** + **Outgoing** |
+1. Google account တွင် **2-Step Verification** ဖွင့်ပါ။
+2. [Google App Passwords](https://myaccount.google.com/apppasswords) တွင် App
+   Password ဖန်တီးပါ။
+3. Frappe **Password** Field တွင် Gmail Login password မဟုတ်ဘဲ App Password
+   ကိုသုံးပါ။ Secret ကို Documentation/Screenshot/Git ထဲ မထည့်ပါနှင့်။
 
----
+### **Details** Tab
 
-## Part 1 — Gmail (`@gmail.com` or Google Workspace)
-
-### 1.1 Before you fill the form
-
-1. Google account မှာ **2-Step Verification** ဖွင့်ပါ။
-2. [Google App Passwords](https://myaccount.google.com/apppasswords) မှာ app password ဖန်တီးပါ (name: `Frappe LMS`).
-3. 16-character password ကို copy လုပ်ပါ — Frappe **Password** field မှာ **ဒီ password** သုံးပါ (Gmail login password **မသုံးပါ**)။
-
-### 1.2 Tab: Details
-
-| Field | Fill with |
-|-------|-----------|
-| **Email Address** * | Your Gmail address (example: `hdlp.support@gmail.com`) |
-| **Email Account Name** | Short label (example: `Support`) — auto-filled from email |
-| **Service** | Select **Gmail** if available (may auto-fill servers) |
-| **Domain** | Leave empty |
-| **Enable Incoming** | ✓ only if you want Frappe to **receive** mail |
-| **Enable Outgoing** | ✓ **Required** for password reset / notifications |
+| Field | Value |
+|---|---|
+| **Email Address** | Mailbox address |
+| **Email Account Name** | ဖတ်ရလွယ်သော Label |
+| **Service** | ရှိပါက **Gmail** |
+| **Domain** | Blank |
+| **Enable Incoming** | Mail လက်ခံလိုမှ Enable |
+| **Enable Outgoing** | Password Reset/Notification အတွက် Enable |
 | **Authentication → Method** | **Basic** |
-| **Password** | Google **App Password** (16 characters) |
-| **Use different Email ID** | ✗ leave unchecked |
-| **Awaiting password** | ✗ leave unchecked |
-| **Use ASCII encoding for password** | ✗ leave unchecked |
+| **Password** | Google App Password |
+| **Use different Email ID** | ပုံမှန်အားဖြင့် Off |
+| **Awaiting password** | Off |
+| **Use ASCII encoding for password** | Off |
 
-### 1.3 Tab: Incoming (only if Enable Incoming is ✓)
+### **Incoming** Tab
 
-| Field | Fill with |
-|-------|-----------|
-| **Default Incoming** | ✓ if this is your main inbox for replies |
-| **Attachment Limit (MB)** | `25` (default) |
-| **Use IMAP** | ✓ |
-| **Use SSL** | ✓ |
+| Field | Value |
+|---|---|
+| **Default Incoming** | Main Inbox ဖြစ်မှ Enable |
+| **Attachment Limit (MB)** | `25` သို့မဟုတ် Approved limit |
+| **Use IMAP** | Enable |
+| **Use SSL** | Enable |
 | **Incoming Server** | `imap.gmail.com` |
 | **Port** | `993` |
-| **Append To** | Optional (link mail to Lead, Issue, etc.) |
-| **Notify if unreplied** | Optional |
 
-Do **not** use POP unless you know you need it. IMAP + SSL + port `993` is standard for Gmail.
+### **Outgoing** Tab
 
-### 1.4 Tab: Outgoing (required for send)
-
-| Field | Fill with |
-|-------|-----------|
-| **Default Outgoing** | ✓ **Required** — system mail sends from this account |
-| **Always use this email address as sender address** | ✓ recommended |
-| **Always use this name as sender name** | Optional |
-| **Send unsubscribe message in email** | Default (usually ✓) |
-| **Track Email Status** | Default (usually ✓) |
-| **Use TLS** | ✓ |
-| **Use SSL** | ✗ leave unchecked (port 587 uses TLS, not SSL) |
+| Field | Value |
+|---|---|
+| **Default Outgoing** | Enable |
+| **Always use this email address as sender address** | Recommended Enable |
+| **Use TLS** | Enable |
+| **Use SSL** | Off |
 | **Outgoing Server** | `smtp.gmail.com` |
 | **Port** | `587` |
-| **Disable SMTP server authentication** | ✗ leave unchecked |
-| **Delivery Status Notification Type** | Leave empty |
-| **Always BCC Address** | Leave empty |
+| **Disable SMTP server authentication** | Off |
 
-### 1.5 Save and test
+**Save → Send Test Email** ကိုနှိပ်ပြီး Inbox/Spam စစ်ပါ။
 
-1. Click **Save**.
-2. On the same form: **Send Test Email** → your mailbox → send.
-3. Check inbox and spam.
+| Error | ဖြေရှင်းရန် |
+|---|---|
+| `535 Username and Password not accepted` | Gmail Login password အစား App Password သုံးပါ။ |
+| Port `587` timeout | Server Outbound Firewall/Provider restriction စစ်ပါ။ |
+| Spam ထဲရောက်ခြင်း | Google Workspace SPF/DKIM/DMARC နှင့် Sender reputation စစ်ပါ။ |
 
-### 1.6 Gmail errors
+## 2. Outlook / Microsoft 365
 
-| Error | Fix |
-|-------|-----|
-| `535 Username and Password not accepted` | Use App Password, not Gmail login password |
-| Connection timeout on `587` | Server firewall must allow outbound port `587` |
-| Mail in spam | Normal for new senders; set up SPF/DKIM in Google Workspace |
+### မစတင်မီ
 
----
+- Microsoft 365 Admin တွင် Mailbox ၏ **Authenticated SMTP** ကို ခွင့်ပြုထားရမည်။
+- MFA သုံးပါက Tenant policy ခွင့်ပြုသော App Password သို့မဟုတ် Supported OAuth
+  method ကိုသုံးပါ။ Organization က Basic SMTP AUTH ပိတ်ထားပါက Security policy
+  ကိုမကျော်ဘဲ Microsoft 365 Administrator နှင့် Supported authentication ကို
+  ရွေးပါ။
 
-## Part 2 — Outlook / Microsoft 365
+### **Details** Tab
 
-Work/school: `@yourdomain.com` on Microsoft 365.  
-Personal: `@outlook.com`, `@hotmail.com`.
+| Field | Value |
+|---|---|
+| **Email Address** | Outlook/Microsoft 365 Mailbox address |
+| **Email Account Name** | ဖတ်ရလွယ်သော Label |
+| **Service** | ရှိပါက **Outlook.com** သို့မဟုတ် **Office 365** |
+| **Enable Incoming** | Mail လက်ခံလိုမှ Enable |
+| **Enable Outgoing** | Enable |
+| **Authentication → Method** | Tenant policy နှင့်ကိုက်သော Method |
+| **Password** | Mailbox/App Password (policy ခွင့်ပြုမှ) |
 
-### 2.1 Before you fill the form
+### **Incoming** Tab
 
-**Microsoft 365 (work / school)**
-
-1. Mailbox ရွေးပါ (example: `noreply@yourdomain.com`).
-2. **Authenticated SMTP** ဖွင့်ထားရပါမယ်:
-   - M365 admin → **Users** → user → **Mail** → **Manage email apps** → **Authenticated SMTP** ✓
-3. MFA ရှိရင် **app password** သုံးပါ။
-
-**Personal Outlook.com**
-
-1. Full email သုံးပါ။
-2. MFA ရှိရင် [Microsoft account security](https://account.microsoft.com/security) မှာ app password ဖန်တီးပါ။
-
-### 2.2 Tab: Details
-
-| Field | Fill with |
-|-------|-----------|
-| **Email Address** * | Your Outlook address (example: `support@yourdomain.com`) |
-| **Email Account Name** | Short label (example: `Support`) |
-| **Service** | Select **Outlook.com** or **Office 365** if available |
-| **Domain** | Leave empty (or your org domain if prompted) |
-| **Enable Incoming** | ✓ only if you want Frappe to **receive** mail |
-| **Enable Outgoing** | ✓ **Required** |
-| **Authentication → Method** | **Basic** |
-| **Password** | Mailbox password or Microsoft **app password** |
-| **Use different Email ID** | ✗ leave unchecked |
-| **Awaiting password** | ✗ leave unchecked |
-
-### 2.3 Tab: Incoming (only if Enable Incoming is ✓)
-
-**Microsoft 365 / Exchange Online**
-
-| Field | Fill with |
-|-------|-----------|
-| **Default Incoming** | ✓ if main inbox |
-| **Attachment Limit (MB)** | `25` |
-| **Use IMAP** | ✓ |
-| **Use SSL** | ✓ |
+| Field | Microsoft 365 / Outlook.com |
+|---|---|
+| **Use IMAP** | Enable |
+| **Use SSL** | Enable |
 | **Incoming Server** | `outlook.office365.com` |
 | **Port** | `993` |
 
-**Personal Outlook.com / Hotmail**
+### **Outgoing** Tab
 
-| Field | Fill with |
-|-------|-----------|
-| **Incoming Server** | `outlook.office365.com` |
-| **Port** | `993` |
-| **Use IMAP** | ✓ |
-| **Use SSL** | ✓ |
+| Field | Microsoft 365 | Personal Outlook.com |
+|---|---|---|
+| **Default Outgoing** | Enable | Enable |
+| **Use TLS** | Enable | Enable |
+| **Use SSL** | Off | Off |
+| **Outgoing Server** | `smtp.office365.com` | `smtp-mail.outlook.com` |
+| **Port** | `587` | `587` |
+| **Disable SMTP server authentication** | Off | Off |
 
-### 2.4 Tab: Outgoing (required for send)
+**Save → Send Test Email** ဖြင့်စမ်းပါ။
 
-**Microsoft 365 / Exchange Online**
+| Error | ဖြေရှင်းရန် |
+|---|---|
+| `535 Authentication failed` | Credential, MFA/App Password နှင့် SMTP AUTH policy စစ်ပါ။ |
+| `SmtpClientAuthentication is disabled` | M365 Admin က Mailbox/Tenant policy စစ်ရမည်။ |
+| Personal account blocked | App Password နှင့် `smtp-mail.outlook.com` စစ်ပါ။ |
 
-| Field | Fill with |
-|-------|-----------|
-| **Default Outgoing** | ✓ **Required** |
-| **Always use this email address as sender address** | ✓ recommended |
-| **Use TLS** | ✓ |
-| **Use SSL** | ✗ leave unchecked |
-| **Outgoing Server** | `smtp.office365.com` |
-| **Port** | `587` |
-| **Disable SMTP server authentication** | ✗ leave unchecked |
+## 3. Server အကျဉ်းချုပ်
 
-**Personal Outlook.com / Hotmail**
+| | Gmail | Microsoft 365 | Personal Outlook |
+|---|---|---|---|
+| Incoming | `imap.gmail.com:993` SSL | `outlook.office365.com:993` SSL | `outlook.office365.com:993` SSL |
+| Outgoing | `smtp.gmail.com:587` TLS | `smtp.office365.com:587` TLS | `smtp-mail.outlook.com:587` TLS |
 
-| Field | Fill with |
-|-------|-----------|
-| **Outgoing Server** | `smtp-mail.outlook.com` |
-| **Port** | `587` |
-| **Use TLS** | ✓ |
-| **Use SSL** | ✗ leave unchecked |
-| Other outgoing fields | Same as M365 table above |
+## 4. Setup ပြီးနောက်
 
-Use port **587** + **Use TLS**. Port `465` + SSL is usually not needed for Office 365.
-
-### 2.5 Save and test
-
-1. Click **Save**.
-2. **Send Test Email** to yourself.
-3. Check inbox and spam.
-
-### 2.6 Outlook errors
-
-| Error | Fix |
-|-------|-----|
-| `535 Authentication failed` | Wrong password; enable Authenticated SMTP; use app password |
-| `SmtpClientAuthentication is disabled` | Enable SMTP AUTH per mailbox in M365 admin |
-| Personal account blocked | Use app password; server `smtp-mail.outlook.com` |
-
----
-
-## Gmail vs Outlook — server summary
-
-| | Gmail | Outlook M365 | Outlook personal |
-|---|--------|----------------|------------------|
-| **Incoming server** | `imap.gmail.com` | `outlook.office365.com` | `outlook.office365.com` |
-| **Incoming port** | `993` (IMAP + SSL) | `993` (IMAP + SSL) | `993` (IMAP + SSL) |
-| **Outgoing server** | `smtp.gmail.com` | `smtp.office365.com` | `smtp-mail.outlook.com` |
-| **Outgoing port** | `587` (TLS) | `587` (TLS) | `587` (TLS) |
-| **Password** | Google App Password | Mailbox / app password | Mailbox / app password |
-
----
-
-## After setup (both providers)
-
-### System settings
-
-1. **Setup → Settings → System Settings**
-2. **Email Footer Address** — support or admin email
-3. **Time Zone** — `Asia/Yangon` if Myanmar
-4. Save
-
-### User email (forgot password)
-
-1. **Setup → Users** → open user
-2. **Email** must be a real address that receives mail
-
-### Test forgot password
-
-1. Log out → login page → **Forgot Password**
-2. Enter user email from **Users**
-3. Check mailbox (and spam)
-
-### Email queue (if mail delayed)
-
-**Setup → Email → Email Queue** → open **Error** rows for the message.
+1. **System Settings** တွင် **Email Footer Address** နှင့် **Time Zone**
+   (`Asia/Yangon` လိုအပ်ပါက) ပြင်ပါ။
+2. **Users** ရှိ User Email သည် Mail လက်ခံနိုင်သော Address မှန်ဖြစ်ရမည်။
+3. Logout → **Forgot Password** ဖြင့် Reset Email စမ်းပါ။
+4. Mail နောက်ကျပါက **Email Queue** ရှိ **Error** Rows ကိုစစ်ပါ။
 
 ```bash
-cd docker-setup
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend \
   bench --site frontend execute frappe.email.queue.flush
 ```
 
-## Production: `PUBLIC_URL`
-
-Reset links use `.env`:
+`frontend` ကို Site အမည်အမှန်ဖြင့် ပြောင်းပါ။ Password Reset Link မှန်ရန်—
 
 ```env
-PUBLIC_URL=https://lms.yourdomain.com
+PUBLIC_URL=https://lms.example.com
 ```
 
-After change:
+Value ပြောင်းပြီးနောက် ပုံမှန်အားဖြင့် `./setup.sh --reconfigure` သုံးပါ။ Manual
+operation လိုပါက—
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml restart backend frontend
@@ -245,23 +155,15 @@ docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend 
   bench --site frontend clear-cache
 ```
 
-## Verify default outgoing
+Default Outgoing account စစ်ရန်—
 
 ```bash
 docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend \
   bench --site frontend execute "frappe.db.get_value('Email Account', {'default_outgoing': 1}, 'email_id')"
 ```
 
-## Related guides
+## ဆက်စပ်လမ်းညွှန်များ
 
-- [setup.md](../setup/setup.md)
-- [checklists.md](../setup/checklists.md)
-- [keycloak-frappe-setup-guide.md](./keycloak-frappe-setup-guide.md)
-
-## Myanmar quick notes
-
-- Form tab **သုံးခု** — **Details** (email + password), **Incoming** (လက်ခံချင်မှ), **Outgoing** (ပို့ချင်ရင် — reset password အတွက် လိုပါတယ်)။
-- **Gmail** = App Password + `smtp.gmail.com:587` (TLS) + `imap.gmail.com:993` (SSL)။
-- **Outlook M365** = `smtp.office365.com:587` + `outlook.office365.com:993` + Authenticated SMTP ဖွင့်ထားရမယ်။
-- **Outlook personal** = outgoing `smtp-mail.outlook.com:587`။
-- User မှာ **Email** မှန်မှ **Forgot Password** mail ရပါမယ်။
+- [Setup](../setup/setup.md)
+- [Hosting Checklists](../setup/checklists.md)
+- [Keycloak SSO](keycloak-frappe-setup-guide.md)

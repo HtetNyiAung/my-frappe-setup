@@ -1,14 +1,13 @@
 # Legacy Update Command
 
-`update.sh` is retained only for backward compatibility. It now forwards its
-arguments to:
+`update.sh` ကို Backward Compatibility အတွက်သာ ဆက်ထားသည်။ ပေးလိုက်သော
+Arguments များကို အောက်ပါ command သို့ လွှဲပေးသည်။
 
 ```bash
 ./deploy.sh apply
 ```
 
-For new operational procedures and automation, use the explicit deployment
-workflow:
+Operation အသစ်နှင့် Automation အတွက် Explicit Deployment workflow ကိုသုံးပါ။
 
 ```bash
 ./deploy.sh check
@@ -17,6 +16,7 @@ workflow:
 ./deploy.sh verify
 ```
 
-See [Application Deployment Guide](deploy.md) for safety behaviour and failure
-recovery. See [Runtime Operations Guide](../operations/operations.md) for migration, cache,
-restart, status, logs, and Maintenance Mode commands.
+Safety behavior နှင့် Failure recovery အတွက် [Application Deployment
+လမ်းညွှန်](deploy.md) ကိုဖတ်ပါ။ Migration, Cache, Restart, Status, Logs နှင့်
+Maintenance Mode အတွက် [Runtime Operations လမ်းညွှန်](../operations/operations.md)
+ကို ဖတ်ပါ။
