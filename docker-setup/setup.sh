@@ -26,10 +26,13 @@ echo "$SCRIPT_DIR"
 
 usage() {
     cat <<'EOF'
-Usage: ./setup.sh [--rebuild] [--yes]
+Usage: ./setup.sh [--rebuild] [--reconfigure] [--yes]
 
 Options:
   --rebuild   Force a fresh custom image build.
+  --reconfigure
+              Allow setup to change an existing site/infrastructure.
+              Use deploy.sh for routine application updates.
   --yes, -y   Run without interactive confirmation (for trusted scripts).
   --help, -h  Show this help message.
 EOF
@@ -138,9 +141,9 @@ validate_private_repository_access() {
         url=$(echo "$row" | jq -r '.url')
         branch=$(echo "$row" | jq -r '.branch // "main"')
 
-        if ! git_with_github_auth ls-remote --exit-code \
-            "$url" "refs/heads/$branch" >/dev/null; then
-            echo "Error: Cannot read private GitHub repository '$name' branch '$branch'."
+        if ! git_with_github_auth ls-remote --exit-code "$url" \
+            "refs/heads/$branch" "refs/tags/$branch" "refs/tags/$branch^{}" >/dev/null; then
+            echo "Error: Cannot read private GitHub repository '$name' branch/tag '$branch'."
             echo "Verify that GITHUB_TOKEN is valid, not expired, authorized for SSO if required,"
             echo "and has read-only Contents access to the repository."
             exit 1
@@ -175,6 +178,7 @@ confirm_setup() {
     echo "Setup Target Site: $SITE_DOMAIN"
     echo "Custom Image:      $CUSTOM_IMAGE"
     echo "Force Rebuild:     $FORCE_REBUILD"
+    echo "Reconfigure Site:  $RECONFIGURE"
     echo "Database:          $DATABASE_MODE ($DB_HOST:$DB_PORT)"
     echo "S3 Storage:        $S3_STORAGE_ENABLED"
     echo "=========================================="
@@ -188,6 +192,27 @@ confirm_setup() {
         echo "Setup cancelled."
         exit 1
     fi
+}
+
+guard_setup_scope() {
+    if ! docker ps -q -f "name=^/${BACKEND_CONTAINER}$" | grep -q .; then
+        return
+    fi
+    if ! docker exec "$BACKEND_CONTAINER" bench list-sites 2>/dev/null |
+        awk 'NF {print $NF}' |
+        grep -Fxq "$SITE_DOMAIN"; then
+        return
+    fi
+    if [ "$RECONFIGURE" = true ]; then
+        echo "Existing site '$SITE_DOMAIN' detected; explicit --reconfigure accepted."
+        return
+    fi
+
+    echo "Error: Site '$SITE_DOMAIN' already exists. setup.sh is reserved for first setup"
+    echo "and explicit infrastructure reconfiguration."
+    echo "Use './deploy.sh plan' and './deploy.sh apply' for routine code updates."
+    echo "Use './setup.sh --reconfigure' only when changing setup/infrastructure settings."
+    exit 1
 }
 
 normalize_s3_storage_enabled() {
@@ -938,10 +963,10 @@ clone_custom_apps() {
                 echo "Syncing $name from origin/$branch..."
                 if ! git_with_github_auth -C "$target_dir" fetch origin "$branch"; then
                     echo "⚠️  Warning: Failed to fetch $name. Using existing files."
-                elif ! git -C "$target_dir" reset --hard "origin/$branch"; then
-                    echo "⚠️  Warning: Failed to reset $name to origin/$branch."
+                elif ! git -C "$target_dir" reset --hard FETCH_HEAD; then
+                    echo "⚠️  Warning: Failed to reset $name to fetched branch/tag '$branch'."
                 else
-                    echo "✅ $name synced to origin/$branch"
+                    echo "✅ $name synced to $branch"
                 fi
             fi
         fi
@@ -1037,12 +1062,16 @@ update_submodules() {
 
 parse_args() {
     FORCE_REBUILD=false
+    RECONFIGURE=false
     YES=0
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --rebuild)
                 FORCE_REBUILD=true
+                ;;
+            --reconfigure)
+                RECONFIGURE=true
                 ;;
             --yes|-y)
                 YES=1
@@ -1414,7 +1443,14 @@ provision_site() {
 
     preflight_s3_storage
 
-    if compose_exec_backend bench list-sites | grep -q "$SITE_DOMAIN"; then
+    if compose_exec_backend bench list-sites |
+        awk 'NF {print $NF}' |
+        grep -Fxq "$SITE_DOMAIN"; then
+        if [ "$RECONFIGURE" != true ]; then
+            echo "Error: Existing site '$SITE_DOMAIN' cannot be updated by setup.sh."
+            echo "Use ./deploy.sh apply, or rerun setup with --reconfigure for infrastructure changes."
+            exit 1
+        fi
         if ! list_installed_apps >/dev/null; then
             echo "Error: Existing site '$SITE_DOMAIN' cannot connect to $DB_HOST:$DB_PORT."
             echo "Verify that its database and site user were migrated before switching DATABASE_MODE."
@@ -1428,7 +1464,10 @@ provision_site() {
         echo ""
         repair_custom_apps_if_needed
         echo "Running migrate..."
-        bench_site migrate || echo "⚠️  Migration had warnings/errors."
+        if ! bench_site migrate; then
+            echo "Error: Migration failed for existing site '$SITE_DOMAIN'."
+            exit 1
+        fi
         return
     fi
 
@@ -1445,7 +1484,10 @@ provision_site() {
     echo ""
     repair_custom_apps_if_needed
     echo "Running migrate..."
-    bench_site migrate || echo "⚠️  Migration had warnings/errors."
+    if ! bench_site migrate; then
+        echo "Error: Migration failed for new site '$SITE_DOMAIN'."
+        exit 1
+    fi
 }
 
 print_summary() {
@@ -1482,6 +1524,7 @@ main() {
     check_requirements
     load_configuration
     apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
+    guard_setup_scope
     confirm_setup
     validate_private_repository_access
     preflight_external_database

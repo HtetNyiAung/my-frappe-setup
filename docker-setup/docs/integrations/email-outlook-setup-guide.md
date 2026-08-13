@@ -254,8 +254,8 @@ docker compose -f pwd-with-apps.yml -f docker-compose.override.yml exec backend 
 
 ## Related guides
 
-- [setup.md](./setup.md)
-- [checklists.md](./checklists.md)
+- [setup.md](../setup/setup.md)
+- [checklists.md](../setup/checklists.md)
 - [keycloak-frappe-setup-guide.md](./keycloak-frappe-setup-guide.md)
 
 ## Myanmar quick notes

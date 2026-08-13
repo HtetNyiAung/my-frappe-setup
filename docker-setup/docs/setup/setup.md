@@ -1,13 +1,16 @@
 # Frappe Docker Setup
 
-`setup.sh` is the main setup script for this Frappe stack. It builds the custom image from `apps.json`, starts Docker Compose, creates or updates the site, installs apps one by one, repairs common database credential issues, and clears stale UI asset cache.
+`setup.sh` is the first-installation and infrastructure-reconfiguration script.
+It builds the custom image from `apps.json`, starts Docker Compose, creates the
+site, installs apps, configures storage/branding, and clears stale UI caches.
+It is not the normal application update command.
 
 ## Quick Start
 
 Run from the `docker-setup` folder:
 
 ```bash
-chmod +x setup.sh
+chmod +x setup.sh deploy.sh ops.sh backup.sh restore.sh
 ./setup.sh
 ```
 
@@ -21,29 +24,46 @@ Open the site:
 http://localhost:8787
 ```
 
-## Normal Run vs Rebuild
+## First Setup vs Later Operations
 
-Use normal setup for most changes:
+Use normal setup only when creating the stack and site for the first time:
 
 ```bash
 ./setup.sh
 ```
 
-The script checks whether the current Docker image already contains all apps from `apps.json`. If an app is missing, it rebuilds the image automatically.
+If the running backend already contains `SITE_DOMAIN`, a normal setup run stops
+and directs you to `deploy.sh`. This prevents a daily code update from silently
+running the larger provisioning workflow.
 
-Use forced rebuild only when you want a fresh image:
+For a deliberate infrastructure reconfiguration of an existing site, use:
 
 ```bash
-./setup.sh --rebuild
+./setup.sh --reconfigure
 ```
 
-For a trusted non-interactive rebuild, run `./setup.sh --rebuild --yes`.
+Add `--rebuild` only when the reconfiguration also needs a fresh image:
 
-Use `--rebuild` when:
+```bash
+./setup.sh --reconfigure --rebuild
+```
 
-- You changed an app branch.
-- You want to refresh the image cache.
-- You suspect the current image is stale or broken.
+Routine code updates use:
+
+```bash
+./deploy.sh check
+./deploy.sh plan
+./deploy.sh apply
+```
+
+Use `--reconfigure` when:
+
+- Changing local/external database infrastructure settings.
+- Regenerating custom app mounts or other generated Compose configuration.
+- Applying setup-managed S3, public URL, or branding configuration.
+
+See [Application Deployment Guide](../deployment/deploy.md) and
+[Runtime Operations Guide](../operations/operations.md) for all later operations.
 
 ## apps.json
 
@@ -141,7 +161,7 @@ history, revoke it in GitHub and generate a replacement.
 11. Refreshes `sites/apps.txt`.
 12. Creates the site if needed.
 13. Installs apps one by one.
-14. Runs migration for existing sites.
+14. Migrates an existing site only when `--reconfigure` was explicitly given.
 15. Clears stale Frappe asset cache.
 16. Prints installed apps.
 
@@ -197,8 +217,8 @@ DB_PASSWORD=secure_site_db_password
 - `DB_NAME` — new sites only; leave empty to let Frappe derive it from `SITE_DOMAIN`
 - `DB_PASSWORD` — new sites only; site database user password stored in `site_config.json`
 
-Use [External MariaDB on an Ubuntu VM](external-database-ubuntu.md) to provision
-a new database host. See [External MariaDB](external-database.md) before moving
+Use [External MariaDB on an Ubuntu VM](../database/external-database-ubuntu.md) to provision
+a new database host. See [External MariaDB](../database/external-database.md) before moving
 an existing site. Changing `DB_HOST` does not migrate any database records.
 
 ## Database Credential Repair

@@ -123,11 +123,11 @@ on a newly added App Server.
 
 Detailed setup procedures:
 
-- [External MariaDB on Ubuntu](external-database-ubuntu.md)
-- [MinIO S3 integration](minio-s3-integration-guide.md)
+- [External MariaDB on Ubuntu](../database/external-database-ubuntu.md)
+- [MinIO S3 integration](../storage/minio-s3-integration-guide.md)
 - [Reverse Proxy configuration](reverse-proxy-guide.md)
-- [Backup procedure](backup.md)
-- [Restore procedure](restore.md)
+- [Backup procedure](../operations/backup.md)
+- [Restore procedure](../operations/restore.md)
 
 ## 4. Request and Data Flow
 
@@ -334,7 +334,7 @@ If local files remain, migrate them or provide a supported shared filesystem.
 
 The current S3 attachment integration has a documented bucket-model
 limitation. Review the
-[MinIO S3 integration guide](minio-s3-integration-guide.md#bucket-model-limitation)
+[MinIO S3 integration guide](../storage/minio-s3-integration-guide.md#bucket-model-limitation)
 before treating public and private files as independently isolated buckets.
 
 ### 8.6 Load Balancer behavior
@@ -478,4 +478,3 @@ approved non-production environment.
 - [ ] MariaDB and MinIO allow every approved App Server source IP.
 - [ ] Connection capacity and resource limits are measured.
 - [ ] Rolling deployment, failure, and rollback scenarios are tested.
-

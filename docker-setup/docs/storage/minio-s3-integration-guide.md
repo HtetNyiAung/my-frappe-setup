@@ -146,7 +146,7 @@ For permission-sensitive parliamentary attachments, do not rely on an anonymousl
 Rebuild the custom image and verify the dependency inside Frappe's virtual environment:
 
 ```bash
-./setup.sh --rebuild
+./setup.sh --reconfigure --rebuild
 docker compose -f pwd-with-apps.yml exec backend \
   /home/frappe/frappe-bench/env/bin/python -c "import boto3; print(boto3.__version__)"
 ```
@@ -156,7 +156,8 @@ This means boto3 is connecting to AWS S3 instead of MinIO. Verify `AWS_ENDPOINT_
 ```bash
 docker compose -f pwd-with-apps.yml exec backend printenv AWS_ENDPOINT_URL
 ```
-If empty, re-run `./setup.sh` to regenerate the Docker Compose override.
+If empty on an existing site, run `./setup.sh --reconfigure` to regenerate the
+Docker Compose override.
 
 ### `NoSuchBucket` or S3 preflight failure
 
@@ -167,4 +168,5 @@ The bucket in `S3_BUCKET_NAME` does not exist in the MinIO instance currently se
 The site still contains S3-backed `File` records. Keep S3 enabled until those objects are migrated to local storage and their `File` URLs are updated. This guard prevents existing attachments from becoming inaccessible.
 
 ### S3 File Attachment settings are empty in Desk UI
-Re-run `./setup.sh` — the `apply_s3_storage_config()` function writes credentials to the DocType automatically.
+Run `./setup.sh --reconfigure` — the `apply_s3_storage_config()` function writes
+credentials to the DocType automatically.

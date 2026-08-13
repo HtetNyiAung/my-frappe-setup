@@ -72,7 +72,7 @@ Do not expose `FRAPPE_INTERNAL_PORT=8080` directly to users.
 See also:
 
 ```text
-docs/reverse-proxy-guide.md
+docs/deployment/reverse-proxy-guide.md
 ```
 
 ## 3. Docker Compose Review
@@ -197,7 +197,7 @@ For remote admin access, prefer SSH tunnel instead of exposing MariaDB to the ne
 See also:
 
 ```text
-docs/database-client-access.md
+docs/database/database-client-access.md
 ```
 
 ## 9. User and Role Readiness

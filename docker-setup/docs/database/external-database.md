@@ -92,10 +92,11 @@ Use a maintenance window. Changing `DB_HOST` does not copy existing data.
    that database.
 6. Set `DATABASE_MODE=external`, `DB_HOST`, `DB_PORT`, and external admin
    credentials in `.env`.
-7. Run `./setup.sh`. The configurator updates `common_site_config.json`, and
-   setup aborts if the existing site cannot authenticate to the target.
-8. Run `bench migrate`, clear caches, and verify login, read/write operations,
-   workers, scheduler, file access, backup, and a test restore.
+7. Run `./setup.sh --reconfigure`. The explicit flag permits setup to update
+   `common_site_config.json` for the existing site; setup aborts if the site
+   cannot authenticate to the target, and migration failure is fatal.
+8. Run `./ops.sh status`, then verify login, read/write operations, workers,
+   scheduler, file access, backup, and a test restore.
 9. Disable maintenance mode only after all checks pass.
 
 Do not run `cleanup.sh` while the old local DB volume is being retained for
@@ -106,7 +107,8 @@ rollback because cleanup intentionally removes project Docker volumes.
 Before accepting new production writes on the external database:
 
 1. Set `DATABASE_MODE=local`, `DB_HOST=db`, and `DB_PORT=3306`.
-2. Run `./setup.sh` to reconnect the application to the untouched local DB.
+2. Run `./setup.sh --reconfigure` to reconnect the application to the untouched
+   local DB.
 3. Verify the site and then disable maintenance mode.
 
 After external writes begin, switching back to the old local database loses

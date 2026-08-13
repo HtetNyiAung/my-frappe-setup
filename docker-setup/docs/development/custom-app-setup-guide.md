@@ -85,18 +85,17 @@ Because we use **Volume Mounts**, your changes to Python/JS files on the host ar
 ### Running Migrations
 If you create a new DocType or change fields, run migrations:
 ```bash
-docker compose exec backend bench --site frontend migrate
+./ops.sh migrate
 ```
 
 ---
 
-## 5. Summary of `setup.sh`
+## 5. Setup and Deployment Scripts
 
-Your `./setup.sh` is now automated to:
-1. Update git submodules.
-2. Build the Docker image with all apps from `apps.json`.
-3. Install/Update the app on the site.
-4. Run `bench migrate`.
+Use `./setup.sh` for the first site installation. After the site exists, use
+`./deploy.sh check`, `./deploy.sh plan`, and `./deploy.sh apply` to build the
+image, create a verified backup, synchronize the app, install it when needed,
+run migration, clear caches, and verify the site.
 
 ---
 

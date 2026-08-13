@@ -4,8 +4,8 @@ Complete guide for protecting your Frappe site with **local backups**, **schedul
 
 Use this together with:
 
-- [`backup.sh`](../backup.sh) — local backup script
-- [`restore.sh`](../restore.sh) — restore from a backup folder
+- [`backup.sh`](../../backup.sh) — local backup script
+- [`restore.sh`](../../restore.sh) — restore from a backup folder
 - [`backup.md`](backup.md) — short reference for `backup.sh`
 
 ---
@@ -342,4 +342,4 @@ Combine all three layers:
 
 - [`backup.md`](backup.md) — `backup.sh` quick reference
 - [`restore.md`](restore.md) — restore procedure
-- [`checklists.md`](checklists.md) — production hosting checklist
+- [`checklists.md`](../setup/checklists.md) — production hosting checklist
