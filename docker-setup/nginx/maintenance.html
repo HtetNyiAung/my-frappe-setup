@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="my">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="robots" content="noindex, nofollow">
+	<title>Digital Portal — စနစ်ပြုပြင်နေပါသည်</title>
+	<style>
+		@font-face {
+			font-family: "Pyidaungsu";
+			src: url("/assets/lms_extensions/fonts/Pyidaungsu-Regular.ttf") format("truetype");
+			font-display: swap;
+		}
+
+		:root {
+			color-scheme: light;
+			font-family: "Pyidaungsu", "Noto Sans Myanmar", "Myanmar Text", sans-serif;
+			color: #13244a;
+			background: #edf4ff;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			min-height: 100vh;
+			margin: 0;
+			display: grid;
+			place-items: center;
+			padding: 32px 20px;
+			background:
+				radial-gradient(circle at 10% 15%, rgba(56, 124, 255, 0.16), transparent 28%),
+				radial-gradient(circle at 90% 85%, rgba(255, 195, 61, 0.18), transparent 30%),
+				linear-gradient(145deg, #f7faff 0%, #e9f2ff 100%);
+		}
+
+		.page-shell {
+			width: min(960px, 100%);
+			overflow: hidden;
+			display: grid;
+			grid-template-columns: minmax(250px, 0.82fr) minmax(420px, 1.18fr);
+			border: 1px solid rgba(35, 80, 158, 0.12);
+			border-radius: 28px;
+			background: #fff;
+			box-shadow: 0 28px 70px rgba(30, 65, 125, 0.18);
+		}
+
+		.brand-panel {
+			position: relative;
+			min-height: 570px;
+			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-between;
+			padding: 44px 38px 36px;
+			color: #fff;
+			background: linear-gradient(155deg, #092c78 0%, #1457c7 62%, #1d6fe0 100%);
+		}
+
+		.brand-panel::before,
+		.brand-panel::after {
+			content: "";
+			position: absolute;
+			border: 1px solid rgba(255, 255, 255, 0.16);
+			border-radius: 50%;
+		}
+
+		.brand-panel::before {
+			width: 330px;
+			height: 330px;
+			top: -180px;
+			right: -160px;
+			box-shadow: 0 0 0 42px rgba(255, 255, 255, 0.04), 0 0 0 84px rgba(255, 255, 255, 0.025);
+		}
+
+		.brand-panel::after {
+			width: 250px;
+			height: 250px;
+			bottom: -150px;
+			left: -130px;
+			box-shadow: 0 0 0 36px rgba(255, 255, 255, 0.04);
+		}
+
+		.brand-content,
+		.brand-footer {
+			position: relative;
+			z-index: 1;
+		}
+
+		.logo-frame {
+			width: 92px;
+			height: 92px;
+			margin-bottom: 28px;
+			display: grid;
+			place-items: center;
+			border: 1px solid rgba(255, 255, 255, 0.4);
+			border-radius: 22px;
+			background: rgba(255, 255, 255, 0.96);
+			box-shadow: 0 14px 30px rgba(0, 20, 70, 0.24);
+		}
+
+		.logo-frame img {
+			width: 76px;
+			height: 66px;
+			object-fit: contain;
+		}
+
+		.brand-title {
+			margin: 0;
+			font-family: Inter, Arial, sans-serif;
+			font-size: clamp(28px, 4vw, 40px);
+			font-weight: 750;
+			line-height: 1.15;
+			letter-spacing: -0.02em;
+		}
+
+		.brand-line {
+			width: 58px;
+			height: 4px;
+			margin: 24px 0;
+			border-radius: 999px;
+			background: #ffd04f;
+		}
+
+		.brand-copy {
+			max-width: 290px;
+			margin: 0;
+			font-size: 17px;
+			line-height: 1.8;
+			color: rgba(255, 255, 255, 0.88);
+		}
+
+		.brand-footer {
+			font-family: Inter, Arial, sans-serif;
+			font-size: 13px;
+			color: rgba(255, 255, 255, 0.7);
+		}
+
+		.status-panel {
+			min-height: 570px;
+			display: flex;
+			align-items: center;
+			padding: 58px 60px;
+		}
+
+		.status-content {
+			width: 100%;
+		}
+
+		.status-icon {
+			position: relative;
+			width: 86px;
+			height: 86px;
+			margin-bottom: 30px;
+			display: grid;
+			place-items: center;
+			border-radius: 24px;
+			color: #1457c7;
+			background: #edf4ff;
+		}
+
+		.status-icon svg {
+			width: 42px;
+			height: 42px;
+		}
+
+		.status-icon::after {
+			content: "";
+			position: absolute;
+			inset: -7px;
+			border: 2px solid transparent;
+			border-top-color: #2d74df;
+			border-right-color: #ffd04f;
+			border-radius: 29px;
+			animation: rotate 2.2s linear infinite;
+		}
+
+		.eyebrow {
+			margin: 0 0 14px;
+			font-family: Inter, Arial, sans-serif;
+			font-size: 13px;
+			font-weight: 700;
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
+			color: #2d68c4;
+		}
+
+		h1 {
+			margin: 0;
+			font-size: clamp(30px, 4vw, 44px);
+			font-weight: 700;
+			line-height: 1.4;
+			letter-spacing: -0.01em;
+			color: #102247;
+		}
+
+		.description {
+			max-width: 510px;
+			margin: 20px 0 30px;
+			font-size: 18px;
+			line-height: 1.85;
+			color: #56637c;
+		}
+
+		.action-row {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 18px;
+		}
+
+		.retry-button {
+			min-height: 50px;
+			padding: 12px 24px;
+			border: 0;
+			border-radius: 12px;
+			font: inherit;
+			font-size: 16px;
+			font-weight: 600;
+			color: #fff;
+			background: #1559c7;
+			box-shadow: 0 10px 22px rgba(21, 89, 199, 0.22);
+			cursor: pointer;
+			transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+		}
+
+		.retry-button:hover {
+			transform: translateY(-1px);
+			background: #0f49ab;
+			box-shadow: 0 13px 26px rgba(21, 89, 199, 0.28);
+		}
+
+		.retry-button:focus-visible {
+			outline: 3px solid rgba(45, 116, 223, 0.3);
+			outline-offset: 3px;
+		}
+
+		.status-code {
+			font-family: Inter, Arial, sans-serif;
+			font-size: 13px;
+			color: #7b879e;
+		}
+
+		@keyframes rotate {
+			to { transform: rotate(360deg); }
+		}
+
+		@media (max-width: 760px) {
+			body {
+				padding: 18px;
+			}
+
+			.page-shell {
+				grid-template-columns: 1fr;
+				border-radius: 22px;
+			}
+
+			.brand-panel {
+				min-height: auto;
+				padding: 28px;
+			}
+
+			.logo-frame {
+				width: 74px;
+				height: 74px;
+				margin-bottom: 20px;
+				border-radius: 18px;
+			}
+
+			.logo-frame img {
+				width: 62px;
+				height: 54px;
+			}
+
+			.brand-line,
+			.brand-copy {
+				display: none;
+			}
+
+			.brand-footer {
+				margin-top: 22px;
+			}
+
+			.status-panel {
+				min-height: auto;
+				padding: 42px 28px 46px;
+			}
+
+			.status-icon {
+				width: 72px;
+				height: 72px;
+				margin-bottom: 26px;
+			}
+
+			.description {
+				font-size: 16px;
+			}
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			.status-icon::after {
+				animation: none;
+			}
+
+			.retry-button {
+				transition: none;
+			}
+		}
+	</style>
+</head>
+<body>
+	<main class="page-shell" aria-labelledby="maintenance-title">
+		<section class="brand-panel" aria-label="Digital Portal">
+			<div class="brand-content">
+				<div class="logo-frame">
+					<img src="/assets/parliament_bills/images/logo-mm.png" alt="Pyidaungsu Hluttaw logo">
+				</div>
+				<p class="brand-title">Digital Portal</p>
+				<div class="brand-line" aria-hidden="true"></div>
+				<p class="brand-copy">ပိုမိုကောင်းမွန်သော ဝန်ဆောင်မှုများပေးနိုင်ရန် စနစ်အား အဆင့်မြှင့်တင်နေပါသည်။</p>
+			</div>
+			<div class="brand-footer">Parliament Digital Portal</div>
+		</section>
+
+		<section class="status-panel">
+			<div class="status-content">
+				<div class="status-icon" aria-hidden="true">
+					<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+						<path d="M8 38h32M12 19h24M15 19v15M24 19v15M33 19v15M9 15l15-8 15 8H9Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+				</div>
+				<p class="eyebrow">Scheduled maintenance</p>
+				<h1 id="maintenance-title">စနစ်အား ခေတ္တပြုပြင်နေပါသည်</h1>
+				<p class="description">
+					ခဏစောင့်ပြီးနောက် Page ကို ပြန်လည်ဖွင့်ကြည့်ပေးပါ။ လုပ်ငန်းများပြီးဆုံးသည်နှင့် ဝန်ဆောင်မှုကို ပုံမှန်အတိုင်း ပြန်လည်အသုံးပြုနိုင်ပါမည်။
+				</p>
+				<div class="action-row">
+					<button class="retry-button" type="button" onclick="window.location.reload()">ပြန်လည်စမ်းသပ်မည်</button>
+					<span class="status-code">Service temporarily unavailable · 503</span>
+				</div>
+			</div>
+		</section>
+	</main>
+</body>
+</html>
