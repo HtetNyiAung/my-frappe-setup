@@ -61,6 +61,36 @@ version နှင့် Backup ကို သေချာရွေးချယ်
 မတော်တဆပြန်ဖွင့်မိခြင်းမှ ကာကွယ်ပေးသည်။ ယုံကြည်ရသော Automation အတွက်
 ပြောင်းလဲမှုလုပ်သည့် command များတွင် `--yes` ထည့်နိုင်သည်။
 
+### Branded Maintenance Page
+
+Maintenance Mode ဖွင့်ထားစဉ် Frappe backend ကပြန်ပေးသော HTTP `503` response ကို
+Frontend Nginx ကဖမ်းယူပြီး `nginx/maintenance.html` ကိုပြသသည်။ Page သည်
+Digital Portal branding၊ Myanmar message၊ responsive layout နှင့်
+`ပြန်လည်စမ်းသပ်မည်` button ပါဝင်ပြီး HTTP status ကို `503 Service Unavailable`
+အတိုင်းထိန်းထားသည်။ Search Engine များက index မလုပ်ရန်လည်း သတ်မှတ်ထားသည်။
+
+Logo နှင့် Myanmar font ကို Site ၏ first-party `/assets` မှ load လုပ်ပြီး၊ Assets
+မရရှိချိန်တွင်လည်း System font fallback ဖြင့် message ကိုဖတ်ရှုနိုင်သည်။ Design
+သို့မဟုတ် message ပြင်ရန် အောက်ပါ file တစ်ခုတည်းကို ပြင်ပါ။
+
+```text
+nginx/maintenance.html
+```
+
+Maintenance page ကိုစစ်ရန်:
+
+```bash
+./ops.sh maintenance-on
+curl -I http://127.0.0.1:YOUR_FRAPPE_PORT/
+./ops.sh maintenance-off
+```
+
+`YOUR_FRAPPE_PORT` နေရာတွင် `.env` ထဲရှိ `FRAPPE_PORT` value ကိုထည့်ပါ။ `curl`
+output တွင် `503 Service Unavailable`, `Retry-After: 60` နှင့်
+`Cache-Control: no-store, no-cache, must-revalidate` ပါရှိရမည်။ Planned
+Maintenance အတွက် `503` ကိုသာ custom page ဖြင့်ပြပြီး unexpected `502` သို့မဟုတ်
+`504` error များကို ဖုံးကွယ်မထားပါ။
+
 ## ဘယ် Script ကို ဘယ်အချိန်သုံးရမလဲ
 
 | လိုအပ်ချက် | Command |

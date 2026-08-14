@@ -16,6 +16,7 @@ server {
 	listen 8080;
 	server_name ${FRAPPE_SITE_NAME_HEADER};
 	root /home/frappe/frappe-bench/sites;
+	error_page 503 /maintenance.html;
 
 	absolute_redirect off;
 	port_in_redirect off;
@@ -70,6 +71,7 @@ server {
 	}
 
 	location @webserver {
+		proxy_intercept_errors on;
 		proxy_http_version 1.1;
 		proxy_set_header X-Forwarded-For $remote_addr;
 		proxy_set_header X-Forwarded-Proto $proxy_x_forwarded_proto;
@@ -80,6 +82,13 @@ server {
 		proxy_redirect off;
 
 		proxy_pass  http://backend-server;
+	}
+
+	location = /maintenance.html {
+		internal;
+		root /usr/share/nginx/html;
+		add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+		add_header Retry-After "60" always;
 	}
 
 	# optimizations
