@@ -163,6 +163,7 @@ fi
 
 echo "=========================================="
 echo "Restore Target Site: $SITE_DOMAIN"
+echo "Database Target:     ${DATABASE_MODE:-local} (${DB_HOST:-db}:${DB_PORT:-3306})"
 echo "Source Folder:       $BACKUP_SRC"
 echo "Database Backup:     $SQL_FILE"
 echo "Public Files:        ${PUBLIC_FILES:-not found}"
@@ -186,7 +187,7 @@ fi
 
 if [ "$SKIP_PRE_BACKUP" -ne 1 ]; then
     echo "Creating safety backup before restore..."
-    "$SCRIPT_DIR/backup.sh"
+    "$SCRIPT_DIR/backup.sh" --yes
 else
     echo "Skipping pre-restore safety backup because --skip-pre-backup was provided."
 fi

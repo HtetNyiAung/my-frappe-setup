@@ -24,6 +24,20 @@ echo "$SCRIPT_DIR"
 # Helpers
 # ---------------------------------------------------------------------------
 
+usage() {
+    cat <<'EOF'
+Usage: ./setup.sh [--rebuild] [--reconfigure] [--yes]
+
+Options:
+  --rebuild   Force a fresh custom image build.
+  --reconfigure
+              Allow setup to change an existing site/infrastructure.
+              Use deploy.sh for routine application updates.
+  --yes, -y   Run without interactive confirmation (for trusted scripts).
+  --help, -h  Show this help message.
+EOF
+}
+
 # Fail early when a required CLI tool is missing.
 require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -65,6 +79,218 @@ is_truthy() {
     esac
 }
 
+apps_require_github_token() {
+    jq -e '.[] | select(.private == true)' "$SCRIPT_DIR/apps.json" >/dev/null
+}
+
+validate_app_repository_auth() {
+    if jq -e \
+        '.[] | select((.url // "") | test("^https://[^/]+@github\\.com/"))' \
+        "$SCRIPT_DIR/apps.json" >/dev/null; then
+        echo "Error: apps.json contains a GitHub credential in a repository URL."
+        echo "Use a clean https://github.com/OWNER/REPOSITORY.git URL and set private=true."
+        echo "Store the token only in the ignored .env file as GITHUB_TOKEN."
+        exit 1
+    fi
+
+    if jq -e \
+        '.[] | select(.private == true and ((.url // "") | startswith("https://github.com/") | not))' \
+        "$SCRIPT_DIR/apps.json" >/dev/null; then
+        echo "Error: Private repositories currently require a clean https://github.com/... URL."
+        exit 1
+    fi
+
+    if apps_require_github_token; then
+        require_env GITHUB_TOKEN
+        require_command base64
+    fi
+}
+
+# Authenticate host-side Git operations without putting the token in the URL,
+# process arguments, repository remote, or command output.
+git_with_github_auth() {
+    local authorization
+
+    if [ -z "${GITHUB_TOKEN:-}" ]; then
+        git "$@"
+        return
+    fi
+
+    authorization="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+    GIT_TERMINAL_PROMPT=0 \
+        GIT_CONFIG_COUNT=1 \
+        GIT_CONFIG_KEY_0='http.https://github.com/.extraheader' \
+        GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $authorization" \
+        git "$@"
+}
+
+validate_private_repository_access() {
+    local branch
+    local name
+    local row
+    local url
+
+    if ! apps_require_github_token; then
+        return
+    fi
+
+    echo "Checking access to private GitHub repositories..."
+
+    while IFS= read -r row; do
+        name=$(echo "$row" | jq -r '.name // (.url | split("/") | last | split(".") | first)')
+        url=$(echo "$row" | jq -r '.url')
+        branch=$(echo "$row" | jq -r '.branch // "main"')
+
+        if ! git_with_github_auth ls-remote --exit-code "$url" \
+            "refs/heads/$branch" "refs/tags/$branch" "refs/tags/$branch^{}" >/dev/null; then
+            echo "Error: Cannot read private GitHub repository '$name' branch/tag '$branch'."
+            echo "Verify that GITHUB_TOKEN is valid, not expired, authorized for SSO if required,"
+            echo "and has read-only Contents access to the repository."
+            exit 1
+        fi
+
+        echo "Private repository access ready: $name ($branch)"
+    done < <(jq -c '.[] | select(.private == true)' "$SCRIPT_DIR/apps.json")
+}
+
+redact_github_token() {
+    python3 -c '
+import os
+import sys
+
+token = os.environ.get("GITHUB_TOKEN", "")
+for line in sys.stdin:
+    sys.stdout.write(line.replace(token, "<redacted>") if token else line)
+'
+}
+
+confirm_setup() {
+    if [ "$YES" -eq 1 ]; then
+        return
+    fi
+
+    if [ ! -t 0 ]; then
+        echo "Error: Interactive confirmation is unavailable. Use --yes for trusted automation."
+        exit 1
+    fi
+
+    echo "=========================================="
+    echo "Setup Target Site: $SITE_DOMAIN"
+    echo "Custom Image:      $CUSTOM_IMAGE"
+    echo "Force Rebuild:     $FORCE_REBUILD"
+    echo "Reconfigure Site:  $RECONFIGURE"
+    echo "Database:          $DATABASE_MODE ($DB_HOST:$DB_PORT)"
+    echo "S3 Storage:        $S3_STORAGE_ENABLED"
+    echo "=========================================="
+
+    local confirmation
+    if ! read -r -p "Type SETUP to continue: " confirmation; then
+        echo "Setup cancelled."
+        exit 1
+    fi
+    if [ "$confirmation" != "SETUP" ]; then
+        echo "Setup cancelled."
+        exit 1
+    fi
+}
+
+guard_setup_scope() {
+    if ! docker ps -q -f "name=^/${BACKEND_CONTAINER}$" | grep -q .; then
+        return
+    fi
+    if ! docker exec "$BACKEND_CONTAINER" bench list-sites 2>/dev/null |
+        awk 'NF {print $NF}' |
+        grep -Fxq "$SITE_DOMAIN"; then
+        return
+    fi
+    if [ "$RECONFIGURE" = true ]; then
+        echo "Existing site '$SITE_DOMAIN' detected; explicit --reconfigure accepted."
+        return
+    fi
+
+    echo "Error: Site '$SITE_DOMAIN' already exists. setup.sh is reserved for first setup"
+    echo "and explicit infrastructure reconfiguration."
+    echo "Use './deploy.sh plan' and './deploy.sh apply' for routine code updates."
+    echo "Use './setup.sh --reconfigure' only when changing setup/infrastructure settings."
+    exit 1
+}
+
+normalize_s3_storage_enabled() {
+    case "${S3_STORAGE_ENABLED:-false}" in
+        1|true|TRUE|yes|YES|on|ON)
+            S3_STORAGE_ENABLED=true
+            ;;
+        0|false|FALSE|no|NO|off|OFF|"")
+            S3_STORAGE_ENABLED=false
+            ;;
+        *)
+            echo "Error: S3_STORAGE_ENABLED must be true or false."
+            exit 1
+            ;;
+    esac
+
+    export S3_STORAGE_ENABLED
+}
+
+normalize_database_configuration() {
+    DATABASE_MODE="${DATABASE_MODE:-local}"
+    DB_PORT="${DB_PORT:-3306}"
+
+    case "$DATABASE_MODE" in
+        local)
+            DB_HOST="${DB_HOST:-db}"
+            DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"
+            ;;
+        external)
+            require_env DB_HOST
+            if [ "$DB_HOST" = "db" ] || [ "$DB_HOST" = "localhost" ] || [ "$DB_HOST" = "127.0.0.1" ]; then
+                echo "Error: External DB_HOST must be reachable from Docker containers, not '$DB_HOST'."
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: DATABASE_MODE must be local or external."
+            exit 1
+            ;;
+    esac
+
+    if ! [[ "$DB_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || [ "$DB_PORT" -gt 65535 ]; then
+        echo "Error: DB_PORT must be an integer between 1 and 65535."
+        exit 1
+    fi
+
+    export DATABASE_MODE DB_HOST DB_PORT DB_ROOT_PASSWORD
+}
+
+preflight_external_database() {
+    if [ "$DATABASE_MODE" != "external" ]; then
+        return
+    fi
+
+    require_command python3
+    echo "Checking external MariaDB network access at $DB_HOST:$DB_PORT..."
+    if ! python3 - "$DB_HOST" "$DB_PORT" <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+
+try:
+    with socket.create_connection((host, port), timeout=5):
+        pass
+except OSError as exc:
+    raise SystemExit(f"External database is not reachable at {host}:{port}: {exc}") from exc
+
+print(f"External database TCP connection is ready: {host}:{port}")
+PY
+    then
+        echo "Error: External database preflight failed."
+        echo "Check its private DNS/IP, firewall allowlist, MariaDB bind address, and port."
+        exit 1
+    fi
+}
+
 production_warning() {
     PRODUCTION_WARNING_COUNT=$((PRODUCTION_WARNING_COUNT + 1))
     echo "⚠️  Production warning: $1"
@@ -83,13 +309,31 @@ check_production_readiness() {
         production_warning "BIND_ADDRESS is 0.0.0.0. For reverse-proxy production, prefer 127.0.0.1."
     fi
 
-    for var_name in MYSQL_ROOT_PASSWORD MARIADB_ROOT_PASSWORD DB_PASSWORD ADMIN_PASSWORD KC_ADMIN_PASSWORD AUTHENTIK_BOOTSTRAP_PASSWORD; do
+    for var_name in DB_PASSWORD ADMIN_PASSWORD KC_ADMIN_PASSWORD AUTHENTIK_BOOTSTRAP_PASSWORD; do
         case "${!var_name:-}" in
             ""|admin|password|changeme|keycloak_db_password|yoursecretkey_replacethis)
                 production_warning "$var_name uses an empty/default value."
                 ;;
         esac
     done
+
+    if [ "$DATABASE_MODE" = "external" ] && [ -n "${DB_ROOT_PASSWORD:-}" ]; then
+        case "$DB_ROOT_PASSWORD" in
+            admin|password|changeme)
+                production_warning "DB_ROOT_PASSWORD uses a default value."
+                ;;
+        esac
+    fi
+
+    if [ "$DATABASE_MODE" = "local" ]; then
+        for var_name in MYSQL_ROOT_PASSWORD MARIADB_ROOT_PASSWORD; do
+            case "${!var_name:-}" in
+                ""|admin|password|changeme)
+                    production_warning "$var_name uses an empty/default value."
+                    ;;
+            esac
+        done
+    fi
 
     if jq -e '.[] | select((.url | test("frappe/lms(.git)?$")) and (.branch == "develop"))' "$SCRIPT_DIR/apps.json" >/dev/null; then
         production_warning "LMS is pinned to the moving 'develop' branch. For production, prefer a release tag or commit SHA."
@@ -112,7 +356,12 @@ get_app_list() {
           else
             (.url | split("/") | last | split(".") | first)
           end
-    ' "$SCRIPT_DIR/apps.json" | xargs
+    ' "$SCRIPT_DIR/apps.json" |
+        if is_truthy "$S3_STORAGE_ENABLED"; then
+            xargs
+        else
+            awk '$0 != "frappe_s3_attachment"' | xargs
+        fi
 }
 
 # Confirm Docker is reachable before any build/start command runs.
@@ -353,6 +602,153 @@ apply_public_url() {
     echo "Public URL set to: $PUBLIC_URL"
 }
 
+apply_s3_storage_config() {
+    if ! is_truthy "$S3_STORAGE_ENABLED"; then
+        return
+    fi
+
+    echo ""
+    echo "Applying MinIO S3 storage configuration..."
+
+    # Keep endpoint in site_config for future reference / custom code.
+    bench_site set-config s3_endpoint_url "$S3_ENDPOINT_URL"
+
+    # Write credentials directly to the S3 File Attachment DocType.
+    # The frappe_s3_attachment app reads from this DocType, not site_config.
+    {
+        compose_exec_backend env \
+            S3_ACCESS_KEY="${S3_ACCESS_KEY:-admin}" \
+            S3_SECRET_KEY="${S3_SECRET_KEY:-ChangeThisStrongPassword123!}" \
+            S3_BUCKET_NAME="${S3_BUCKET_NAME:-app-public}" \
+            S3_REGION="${S3_REGION:-us-east-1}" \
+            bench --site "$SITE_DOMAIN" console --autoreload <<-'PY'
+namespace = {}
+exec("""
+import os
+import frappe
+
+if not frappe.db.exists("DocType", "S3 File Attachment"):
+    print("S3 File Attachment DocType not found. Skipping S3 config.")
+else:
+    doc = frappe.get_single("S3 File Attachment")
+    doc.aws_key = os.environ.get("S3_ACCESS_KEY", "")
+    doc.aws_secret = os.environ.get("S3_SECRET_KEY", "")
+    doc.bucket_name = os.environ.get("S3_BUCKET_NAME", "")
+    doc.region_name = os.environ.get("S3_REGION", "us-east-1")
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+    print("S3 File Attachment settings applied")
+""", namespace, namespace)
+PY
+    } || echo "⚠️  Failed to apply S3 File Attachment settings. Configure manually in Desk UI."
+}
+
+preflight_s3_storage() {
+    if ! is_truthy "$S3_STORAGE_ENABLED"; then
+        return
+    fi
+
+    echo ""
+    echo "Checking MinIO S3 endpoint and bucket..."
+
+    if ! compose_exec_backend env \
+        S3_ENDPOINT_URL="$S3_ENDPOINT_URL" \
+        S3_ACCESS_KEY="$S3_ACCESS_KEY" \
+        S3_SECRET_KEY="$S3_SECRET_KEY" \
+        S3_BUCKET_NAME="$S3_BUCKET_NAME" \
+        S3_REGION="${S3_REGION:-us-east-1}" \
+        /home/frappe/frappe-bench/env/bin/python -c '
+import os
+import boto3
+
+client = boto3.client(
+    "s3",
+    endpoint_url=os.environ["S3_ENDPOINT_URL"],
+    aws_access_key_id=os.environ["S3_ACCESS_KEY"],
+    aws_secret_access_key=os.environ["S3_SECRET_KEY"],
+    region_name=os.environ["S3_REGION"],
+)
+client.head_bucket(Bucket=os.environ["S3_BUCKET_NAME"])
+print("S3 endpoint and bucket are ready")
+'; then
+        echo "Error: S3 storage preflight failed."
+        echo "Verify MinIO is reachable and bucket '$S3_BUCKET_NAME' exists, then rerun setup.sh."
+        exit 1
+    fi
+}
+
+count_s3_backed_files() {
+    local output
+
+    output="$({
+        compose_exec_backend env \
+            S3_BUCKET_NAME="${S3_BUCKET_NAME:-}" \
+            bench --site "$SITE_DOMAIN" console --autoreload <<-'PY'
+namespace = {}
+exec("""
+import os
+import frappe
+
+bucket = os.environ.get("S3_BUCKET_NAME", "").strip()
+private_pattern = "/api/method/frappe_s3_attachment.controller.generate_file%"
+public_pattern = f"%/{bucket}/%" if bucket else ""
+
+if public_pattern:
+    count = frappe.db.sql(
+        '''SELECT COUNT(*) FROM `tabFile`
+        WHERE file_url LIKE %s OR file_url LIKE %s''',
+        (private_pattern, public_pattern),
+    )[0][0]
+else:
+    count = frappe.db.count("File", {"file_url": ["like", private_pattern]})
+
+print(f"S3_BACKED_FILE_COUNT={count}")
+""", namespace, namespace)
+PY
+    } 2>&1)" || return 1
+
+    echo "$output" |
+        sed -n 's/.*S3_BACKED_FILE_COUNT=\([0-9][0-9]*\).*/\1/p' |
+        tail -n 1
+}
+
+reconcile_s3_storage_mode() {
+    local installed_apps
+    local s3_file_count
+
+    installed_apps="$(list_installed_apps || true)"
+
+    if is_truthy "$S3_STORAGE_ENABLED"; then
+        return
+    fi
+
+    if ! echo "$installed_apps" | awk '{print $1}' | grep -Fxq "frappe_s3_attachment"; then
+        echo "Local file storage enabled. S3 attachment hooks are not installed on this site."
+        return
+    fi
+
+    s3_file_count="$(count_s3_backed_files)" || {
+        echo "Error: Could not check for existing S3-backed File records."
+        echo "Refusing to disable frappe_s3_attachment without a successful safety check."
+        exit 1
+    }
+
+    if ! [[ "$s3_file_count" =~ ^[0-9]+$ ]]; then
+        echo "Error: Invalid S3-backed file count: '$s3_file_count'."
+        exit 1
+    fi
+
+    if [ "$s3_file_count" -gt 0 ]; then
+        echo "Error: Cannot switch to local storage while $s3_file_count S3-backed File record(s) remain."
+        echo "Migrate those objects and File URLs to local storage before setting S3_STORAGE_ENABLED=false."
+        exit 1
+    fi
+
+    echo "No S3-backed files found. Removing S3 attachment hooks from site $SITE_DOMAIN..."
+    bench_site uninstall-app --yes frappe_s3_attachment
+}
+
+
 # Repair a site database user when site_config.json and MariaDB passwords drift.
 repair_site_db_credentials() {
     if [ ! -f "$SCRIPT_DIR/repair_db_credentials.py" ]; then
@@ -360,7 +756,18 @@ repair_site_db_credentials() {
         return 1
     fi
 
-    echo "Repairing MariaDB credentials for site $SITE_DOMAIN..."
+    if [ "$DATABASE_MODE" = "external" ] && ! is_truthy "${ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR:-false}"; then
+        echo "External database credential repair is disabled."
+        echo "Set ALLOW_EXTERNAL_DB_CREDENTIAL_REPAIR=true only for a controlled repair."
+        return 1
+    fi
+    if [ "$DATABASE_MODE" = "external" ] &&
+        { [ -z "${DB_ROOT_USERNAME:-}" ] || [ -z "${DB_ROOT_PASSWORD:-}" ]; }; then
+        echo "External database repair requires DB_ROOT_USERNAME and DB_ROOT_PASSWORD."
+        return 1
+    fi
+
+    echo "Repairing MariaDB credentials for site $SITE_DOMAIN on $DB_HOST:$DB_PORT..."
 
     # Keep the repair script on the host and copy it into the container only when needed.
     if ! "${COMPOSE_CMD[@]}" cp "$SCRIPT_DIR/repair_db_credentials.py" backend:/tmp/repair_db_credentials.py; then
@@ -368,7 +775,13 @@ repair_site_db_credentials() {
         return 1
     fi
 
-    compose_exec_backend /home/frappe/frappe-bench/env/bin/python \
+    compose_exec_backend env \
+        DATABASE_MODE="$DATABASE_MODE" \
+        DB_HOST="$DB_HOST" \
+        DB_PORT="$DB_PORT" \
+        DB_ROOT_USERNAME="${DB_ROOT_USERNAME:-root}" \
+        DB_ROOT_PASSWORD="$DB_ROOT_PASSWORD" \
+        /home/frappe/frappe-bench/env/bin/python \
         /tmp/repair_db_credentials.py "$SITE_DOMAIN"
 }
 
@@ -440,6 +853,7 @@ check_requirements() {
     require_command git
     require_command jq
     require_command docker
+    require_command python3
 }
 
 load_configuration() {
@@ -458,13 +872,27 @@ load_configuration() {
         exit 1
     fi
 
+    normalize_s3_storage_enabled
+    normalize_database_configuration
+
     require_env \
         CUSTOM_IMAGE \
         FRAPPE_BRANCH \
         COMPOSE_FILE \
         SITE_DOMAIN \
-        ADMIN_PASSWORD \
-        MYSQL_ROOT_PASSWORD
+        ADMIN_PASSWORD
+
+    if [ "$DATABASE_MODE" = "local" ]; then
+        require_env MYSQL_ROOT_PASSWORD MARIADB_ROOT_PASSWORD
+    fi
+
+    if is_truthy "$S3_STORAGE_ENABLED"; then
+        require_env \
+            S3_ENDPOINT_URL \
+            S3_ACCESS_KEY \
+            S3_SECRET_KEY \
+            S3_BUCKET_NAME
+    fi
 
     if [ ! -f "$SCRIPT_DIR/$COMPOSE_FILE" ]; then
         echo "Error: COMPOSE_FILE '$COMPOSE_FILE' was not found in $SCRIPT_DIR."
@@ -476,7 +904,8 @@ load_configuration() {
         exit 1
     fi
 
-    ensure_docker_access
+    validate_app_repository_auth
+
     check_production_readiness
     echo "Environment variables loaded from .env"
 }
@@ -521,20 +950,23 @@ clone_custom_apps() {
 
         if [ ! -d "$target_dir" ]; then
             echo "Found new custom app: $name ($url). Cloning..."
-            if ! git clone --branch "$branch" "$url" "$target_dir"; then
+            if ! git_with_github_auth clone --branch "$branch" "$url" "$target_dir"; then
                 echo "⚠️  Warning: Failed to clone $name. Skipping volume mount."
                 continue
             fi
         else
             echo "Custom app $name exists on host."
             if [ -d "$target_dir/.git" ]; then
+                # Replace any legacy credential-bearing origin with the clean
+                # URL from apps.json before fetching.
+                git -C "$target_dir" remote set-url origin "$url"
                 echo "Syncing $name from origin/$branch..."
-                if ! git -C "$target_dir" fetch origin "$branch"; then
+                if ! git_with_github_auth -C "$target_dir" fetch origin "$branch"; then
                     echo "⚠️  Warning: Failed to fetch $name. Using existing files."
-                elif ! git -C "$target_dir" reset --hard "origin/$branch"; then
-                    echo "⚠️  Warning: Failed to reset $name to origin/$branch."
+                elif ! git -C "$target_dir" reset --hard FETCH_HEAD; then
+                    echo "⚠️  Warning: Failed to reset $name to fetched branch/tag '$branch'."
                 else
-                    echo "✅ $name synced to origin/$branch"
+                    echo "✅ $name synced to $branch"
                 fi
             fi
         fi
@@ -554,33 +986,70 @@ clone_custom_apps() {
 
 generate_compose_override() {
     local app_name
+    local db_dependent
     local svc
 
     OVERRIDE_FILE="$SCRIPT_DIR/docker-compose.override.yml"
     SERVICES=("backend" "frontend" "configurator" "create-site" "queue-long" "queue-short" "scheduler" "websocket")
+    DB_DEPENDENT_SERVICES=("backend" "create-site" "queue-long" "queue-short" "scheduler")
 
-    if [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ]; then
+    if [ "$DATABASE_MODE" = "external" ] &&
+        [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ] &&
+        ! is_truthy "$S3_STORAGE_ENABLED"; then
         echo "services: {}" > "$OVERRIDE_FILE"
-        echo "No valid custom apps found. Generated empty override file."
+        echo "No custom app mounts, S3 settings, or local DB dependencies are needed. Generated empty override file."
         return
     fi
 
     echo "services:" > "$OVERRIDE_FILE"
 
     for svc in "${SERVICES[@]}"; do
+        db_dependent=false
+        if [ "$DATABASE_MODE" = "local" ] &&
+            [[ " ${DB_DEPENDENT_SERVICES[*]} " == *" $svc "* ]]; then
+            db_dependent=true
+        fi
+
+        if [ "$db_dependent" = false ] &&
+            [ ${#VALID_CUSTOM_APPS[@]} -eq 0 ] &&
+            ! is_truthy "$S3_STORAGE_ENABLED"; then
+            continue
+        fi
+
         echo "  $svc:" >> "$OVERRIDE_FILE"
-        echo "    volumes:" >> "$OVERRIDE_FILE"
 
-        for app_name in "${VALID_CUSTOM_APPS[@]}"; do
-            echo "      - ./frappe_docker/apps/$app_name:/home/frappe/frappe-bench/apps/$app_name" >> "$OVERRIDE_FILE"
-        done
+        if [ "$db_dependent" = true ]; then
+            echo "    depends_on:" >> "$OVERRIDE_FILE"
+            echo "      db:" >> "$OVERRIDE_FILE"
+            echo "        condition: service_healthy" >> "$OVERRIDE_FILE"
+        fi
 
-        echo "✅ Configured $svc with ${#VALID_CUSTOM_APPS[@]} custom apps"
+        # Inject AWS_ENDPOINT_URL for MinIO S3 compatibility.
+        # boto3 SDK (v1.31.0+) reads this env var automatically,
+        # so frappe_s3_attachment connects to MinIO instead of AWS.
+        if is_truthy "$S3_STORAGE_ENABLED"; then
+            echo "    environment:" >> "$OVERRIDE_FILE"
+            echo "      AWS_ENDPOINT_URL: ${S3_ENDPOINT_URL}" >> "$OVERRIDE_FILE"
+        fi
+
+        if [ ${#VALID_CUSTOM_APPS[@]} -gt 0 ]; then
+            echo "    volumes:" >> "$OVERRIDE_FILE"
+
+            for app_name in "${VALID_CUSTOM_APPS[@]}"; do
+                echo "      - ./frappe_docker/apps/$app_name:/home/frappe/frappe-bench/apps/$app_name" >> "$OVERRIDE_FILE"
+            done
+        fi
+
+        echo "✅ Configured $svc with ${#VALID_CUSTOM_APPS[@]} custom apps (DB: $DATABASE_MODE, S3: $S3_STORAGE_ENABLED)"
     done
 }
 
+configure_compose_command() {
+    COMPOSE_CMD=("docker" "compose" "-f" "$COMPOSE_FILE" "-f" "$OVERRIDE_FILE")
+}
+
 validate_compose_config() {
-    if ! docker compose -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE" config >/dev/null; then
+    if ! "${COMPOSE_CMD[@]}" config >/dev/null; then
         echo "Error: Docker Compose configuration is invalid."
         exit 1
     fi
@@ -593,10 +1062,32 @@ update_submodules() {
 
 parse_args() {
     FORCE_REBUILD=false
+    RECONFIGURE=false
+    YES=0
 
-    if [[ "${1:-}" == "--rebuild" ]]; then
-        FORCE_REBUILD=true
-    fi
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --rebuild)
+                FORCE_REBUILD=true
+                ;;
+            --reconfigure)
+                RECONFIGURE=true
+                ;;
+            --yes|-y)
+                YES=1
+                ;;
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option: $1"
+                usage
+                exit 1
+                ;;
+        esac
+        shift
+    done
 }
 
 check_image_apps() {
@@ -628,7 +1119,43 @@ check_image_apps() {
     fi
 }
 
+ensure_s3_image_dependencies() {
+    if ! is_truthy "$S3_STORAGE_ENABLED" ||
+        docker run --rm --entrypoint /home/frappe/frappe-bench/env/bin/python \
+            "$CUSTOM_IMAGE" -c "import boto3" >/dev/null 2>&1; then
+        return
+    fi
+
+    echo "Image '$CUSTOM_IMAGE' is missing boto3. Adding the required S3 dependency layer..."
+
+    if ! docker build \
+        --build-arg BASE_IMAGE="$CUSTOM_IMAGE" \
+        --tag "$CUSTOM_IMAGE" \
+        --file - "$SCRIPT_DIR" <<'DOCKERFILE'
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER frappe
+RUN /home/frappe/frappe-bench/env/bin/pip install --no-cache-dir "boto3>=1.34.0"
+DOCKERFILE
+    then
+        echo "Error: Failed to add boto3 to image '$CUSTOM_IMAGE'."
+        exit 1
+    fi
+
+    if ! docker run --rm --entrypoint /home/frappe/frappe-bench/env/bin/python \
+        "$CUSTOM_IMAGE" -c "import boto3" >/dev/null 2>&1; then
+        echo "Error: Image '$CUSTOM_IMAGE' still cannot import boto3 after dependency installation."
+        exit 1
+    fi
+
+    IMAGE_BUILT=true
+}
+
 build_custom_image() {
+    local build_apps_json
+    local build_status
+    local private_apps_json
+
     IMAGE_BUILT=false
     check_image_apps
 
@@ -637,6 +1164,7 @@ build_custom_image() {
         [ "$IMAGE_HAS_APPS" = true ]; then
 
         echo "Image '$CUSTOM_IMAGE' already contains apps from apps.json. Skipping build. (Use --rebuild to force)"
+        ensure_s3_image_dependencies
         return
     fi
 
@@ -645,7 +1173,7 @@ build_custom_image() {
             if docker exec "$BACKEND_CONTAINER" bench list-sites 2>/dev/null | grep -Fxq "$SITE_DOMAIN"; then
                 echo "Rebuilding image... Taking a safety backup first..."
 
-                if ! "$SCRIPT_DIR/backup.sh"; then
+                if ! "$SCRIPT_DIR/backup.sh" --yes; then
                     if is_truthy "${REQUIRE_BACKUP_BEFORE_SETUP:-0}"; then
                         echo "Backup failed and REQUIRE_BACKUP_BEFORE_SETUP=1 is set. Aborting."
                         exit 1
@@ -661,17 +1189,53 @@ build_custom_image() {
         fi
     fi
 
-    cp "$SCRIPT_DIR/apps.json" "$FRAPPE_PATH/apps.json"
+    build_apps_json="$SCRIPT_DIR/apps.json"
+    private_apps_json=""
+
+    if apps_require_github_token; then
+        private_apps_json="$(mktemp)"
+        chmod 600 "$private_apps_json"
+        trap 'rm -f -- "$private_apps_json"; exit 130' INT TERM
+
+        if ! jq --arg token "$GITHUB_TOKEN" '
+            map(
+                if .private == true then
+                    .url = (.url | sub(
+                        "^https://github.com/";
+                        "https://x-access-token:\($token)@github.com/"
+                    ))
+                else
+                    .
+                end
+                | del(.private)
+            )
+        ' "$SCRIPT_DIR/apps.json" >"$private_apps_json"; then
+            rm -f -- "$private_apps_json"
+            echo "Error: Failed to prepare authenticated private repository configuration."
+            exit 1
+        fi
+
+        build_apps_json="$private_apps_json"
+    fi
+
     cd "$FRAPPE_PATH" || exit 1
 
     echo "Building Image: $CUSTOM_IMAGE"
 
-    if ! docker build \
+    docker build \
         --build-arg FRAPPE_BRANCH="$FRAPPE_BRANCH" \
         --build-arg CACHE_BUST="$(date +%s)" \
-        --secret id=apps_json,src=apps.json \
+        --secret id=apps_json,src="$build_apps_json" \
         --tag "$CUSTOM_IMAGE" \
-        --file images/custom/Containerfile .; then
+        --file images/custom/Containerfile . 2>&1 | redact_github_token
+    build_status=${PIPESTATUS[0]}
+
+    if [ -n "$private_apps_json" ]; then
+        rm -f -- "$private_apps_json"
+        trap - INT TERM
+    fi
+
+    if [ "$build_status" -ne 0 ]; then
 
         echo ""
         echo "❌ ============================================="
@@ -687,20 +1251,34 @@ build_custom_image() {
 
     cd "$SCRIPT_DIR" || exit 1
     IMAGE_BUILT=true
+    ensure_s3_image_dependencies
 }
 
 start_containers() {
     local up_args
 
     cd "$SCRIPT_DIR" || exit 1
-    COMPOSE_CMD=("docker" "compose" "-f" "$COMPOSE_FILE" "-f" "$OVERRIDE_FILE")
-
-    echo "Starting containers..."
+    echo "Starting containers with $DATABASE_MODE database mode..."
 
     up_args=("up" "-d")
     # Recreate when the image changed or custom app volume mounts must be applied.
     if [ "$IMAGE_BUILT" = true ] || [ ${#VALID_CUSTOM_APPS[@]} -gt 0 ]; then
         up_args+=("--force-recreate")
+    fi
+
+    if [ "$DATABASE_MODE" = "external" ]; then
+        up_args+=(
+            backend
+            configurator
+            create-site
+            frontend
+            queue-long
+            queue-short
+            redis-cache
+            redis-queue
+            scheduler
+            websocket
+        )
     fi
 
     if ! "${COMPOSE_CMD[@]}" "${up_args[@]}"; then
@@ -823,12 +1401,14 @@ repair_custom_apps_if_needed() {
 }
 
 create_new_site() {
+    require_env DB_ROOT_USERNAME DB_ROOT_PASSWORD
+
     local db_root_username="${DB_ROOT_USERNAME:-root}"
     local -a new_site_args=(
         bench new-site "$SITE_DOMAIN"
         --admin-password "$ADMIN_PASSWORD"
         --db-root-username "$db_root_username"
-        --db-root-password "$MYSQL_ROOT_PASSWORD"
+        --db-root-password "$DB_ROOT_PASSWORD"
         --set-default
     )
 
@@ -840,6 +1420,7 @@ create_new_site() {
         new_site_args+=(--db-password "$DB_PASSWORD")
     fi
 
+    echo "Using database server: $DB_HOST:$DB_PORT ($DATABASE_MODE)"
     echo "Using db-root-username: $db_root_username"
     if [ -n "${DB_NAME:-}" ]; then
         echo "Using db-name: $DB_NAME"
@@ -860,14 +1441,33 @@ provision_site() {
     install_custom_apps_editable
     refresh_sites_apps_txt
 
-    if compose_exec_backend bench list-sites | grep -q "$SITE_DOMAIN"; then
+    preflight_s3_storage
+
+    if compose_exec_backend bench list-sites |
+        awk 'NF {print $NF}' |
+        grep -Fxq "$SITE_DOMAIN"; then
+        if [ "$RECONFIGURE" != true ]; then
+            echo "Error: Existing site '$SITE_DOMAIN' cannot be updated by setup.sh."
+            echo "Use ./deploy.sh apply, or rerun setup with --reconfigure for infrastructure changes."
+            exit 1
+        fi
+        if ! list_installed_apps >/dev/null; then
+            echo "Error: Existing site '$SITE_DOMAIN' cannot connect to $DB_HOST:$DB_PORT."
+            echo "Verify that its database and site user were migrated before switching DATABASE_MODE."
+            exit 1
+        fi
+
+        reconcile_s3_storage_mode
         echo "Site $SITE_DOMAIN exists. Installing/Updating apps one by one..."
         install_apps_one_by_one
 
         echo ""
         repair_custom_apps_if_needed
         echo "Running migrate..."
-        bench_site migrate || echo "⚠️  Migration had warnings/errors."
+        if ! bench_site migrate; then
+            echo "Error: Migration failed for existing site '$SITE_DOMAIN'."
+            exit 1
+        fi
         return
     fi
 
@@ -884,7 +1484,10 @@ provision_site() {
     echo ""
     repair_custom_apps_if_needed
     echo "Running migrate..."
-    bench_site migrate || echo "⚠️  Migration had warnings/errors."
+    if ! bench_site migrate; then
+        echo "Error: Migration failed for new site '$SITE_DOMAIN'."
+        exit 1
+    fi
 }
 
 print_summary() {
@@ -917,19 +1520,26 @@ print_summary() {
 }
 
 main() {
+    parse_args "$@"
     check_requirements
     load_configuration
     apply_script_log_retention "${SCRIPT_LOG_RETENTION_DAYS:-30}"
+    guard_setup_scope
+    confirm_setup
+    validate_private_repository_access
+    preflight_external_database
+    ensure_docker_access
     prepare_frappe_docker
     clone_custom_apps
     generate_compose_override
+    configure_compose_command
     validate_compose_config
     update_submodules
-    parse_args "$@"
     build_custom_image
     start_containers
     provision_site
     apply_public_url
+    apply_s3_storage_config
     apply_branding
     refresh_asset_cache
     print_summary

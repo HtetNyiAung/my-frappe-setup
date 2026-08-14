@@ -78,7 +78,7 @@ Everything is automated via the `setup.sh` script.
 1. **Clone/Enter the Directory**:
    ```bash
    cd docker-setup
-   chmod +x setup.sh
+   chmod +x setup.sh deploy.sh ops.sh backup.sh restore.sh
    ```
 
 2. **Configure Environment**:
@@ -95,7 +95,14 @@ Everything is automated via the `setup.sh` script.
    ./setup.sh
    ```
 
-4. **Start Keycloak** (optional):
+4. **Install boto3 fallback** (only if an older MinIO image does not include it):
+   ```bash
+   docker compose -f pwd-with-apps.yml exec backend /home/frappe/frappe-bench/env/bin/pip install boto3
+   docker compose -f pwd-with-apps.yml restart backend
+   ```
+   > Current `setup.sh` and `deploy.sh` add this dependency to S3-enabled images automatically. Use these commands only to repair an older image. See [MinIO S3 Integration Guide](docker-setup/docs/storage/minio-s3-integration-guide.md) for details.
+
+5. **Start Keycloak** (optional):
    ```bash
    docker compose -f docker-compose.keycloak.yml up -d
    ```
@@ -112,12 +119,14 @@ my-frappe-setup/
 │   ├── .env                           # Environment variables (ports, passwords)
 │   ├── apps.json                      # Define apps to install
 │   ├── setup.sh                       # Fully automated setup & app cloning script
+│   ├── deploy.sh                      # Guarded routine application deployment
+│   ├── ops.sh                         # Status, logs, restart, cache, and migrate
 │   ├── pwd-with-apps.yml              # Main Docker Compose
 │   ├── docker-compose.override.yml    # Auto-generated volume mounts for custom apps
 │   ├── docker-compose.keycloak.yml    # Keycloak SSO Stack
 │   ├── backup.sh                      # Database backup script
 │   ├── restore.sh                     # Database restore script
-│   ├── update.sh                      # App update script
+│   ├── update.sh                      # Legacy wrapper for deploy.sh apply
 │   ├── cleanup.sh                     # Cleanup script
 │   ├── logs.sh                        # Log viewer script
 │   └── docs/                          # Detailed Documentation
@@ -169,14 +178,11 @@ docker compose exec backend bench list-sites
 ### 🔄 Migration & Cache
 
 ```bash
-# Run migration (after code changes or adding new DocTypes)
-docker compose exec backend bench --site frontend migrate
+# Controlled migration with backup and verification
+./ops.sh migrate
 
-# Clear cache (fix UI issues after changes)
-docker compose exec backend bench --site frontend clear-cache
-
-# Clear website cache
-docker compose exec backend bench --site frontend clear-website-cache
+# Clear site and website cache
+./ops.sh clear-cache
 ```
 
 ### 📦 Install / Remove Apps
@@ -253,9 +259,11 @@ docker compose exec backend bash
    ```
    > 💡 For custom apps, add `"name": "app_name"` and `"is_custom": true`
 
-2. **Re-run setup** to rebuild the Docker image:
+2. **Plan and apply a deployment**:
    ```bash
-   ./setup.sh
+   ./deploy.sh check
+   ./deploy.sh plan
+   ./deploy.sh apply
    ```
 
 3. **⚠️ Important:** If the app has dependencies (like Helpdesk needs Telephony), check the app's `hooks.py` for `required_apps` and add those to `apps.json` **before** the app.
@@ -264,7 +272,9 @@ docker compose exec backend bash
 
 ## 🛠️ Key Features
 
-- **Automated Deployment**: `./setup.sh` ensures all apps in `apps.json` are present on the host and installed on the site.
+- **First Setup**: `./setup.sh` creates and configures a new stack/site.
+- **Guarded Deployment**: `./deploy.sh` backs up, migrates, and verifies an existing site.
+- **Focused Operations**: `./ops.sh` handles status, logs, restarts, cache, and controlled migration.
 - **Hot Reload Development**: Changes in the `apps/` folder are reflected in real-time inside Docker (volume mounted).
 - **SSO Ready**: Built-in Keycloak integration support.
 - **Custom App Support**: Apps marked `is_custom: true` in `apps.json` are auto-cloned and volume-mounted for development.
@@ -273,12 +283,10 @@ docker compose exec backend bash
 
 ## 📚 Documentation Links
 
-- **[Setup Guide](docker-setup/docs/setup.md)**
-- **[Keycloak SSO Integration Guide](docker-setup/docs/keycloak-frappe-setup-guide.md)**
-- **[Custom App Development Guide](docker-setup/docs/custom-app-setup-guide.md)**
-- **[changAI Setup Guide](docker-setup/docs/changai-setup-guide.md)**
-- **[Backup Guide](docker-setup/docs/backup.md)**
-- **[Restore Guide](docker-setup/docs/restore.md)**
-- **[Update Guide](docker-setup/docs/update.md)**
-- **[Logs Guide](docker-setup/docs/logs.md)**
-- **[Cleanup Guide](docker-setup/docs/cleanup.md)**
+- **[Documentation Index](docker-setup/docs/README.md)**
+- **[Myanmar Script Usage Guide](docker-setup/docs/guide/script-usage-guide-my.md)**
+- **[Setup Guide](docker-setup/docs/setup/setup.md)**
+- **[Application Deployment Guide](docker-setup/docs/deployment/deploy.md)**
+- **[Runtime Operations Guide](docker-setup/docs/operations/operations.md)**
+- **[Three-Server Deployment Architecture and Scaling Guide](docker-setup/docs/deployment/deployment-architecture.md)**
+- **[External MariaDB on Ubuntu VM](docker-setup/docs/database/external-database-ubuntu.md)**
