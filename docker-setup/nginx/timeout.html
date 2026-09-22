@@ -4,7 +4,7 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="robots" content="noindex, nofollow">
-	<title>Digital Portal — စနစ်ပြုပြင်နေပါသည်</title>
+	<title>Digital Portal — ဝန်ဆောင်မှု တုံ့ပြန်ရန် ကြာနေပါသည်</title>
 	<style>
 		@font-face {
 			font-family: "Pyidaungsu";
@@ -319,7 +319,7 @@
 	</style>
 </head>
 <body>
-	<main class="page-shell" aria-labelledby="maintenance-title">
+	<main class="page-shell" aria-labelledby="timeout-title">
 		<section class="brand-panel" aria-label="Digital Portal">
 			<div class="brand-content">
 				<div class="logo-frame">
@@ -330,7 +330,7 @@
 				</div>
 				<p class="brand-title">Digital Portal</p>
 				<div class="brand-line" aria-hidden="true"></div>
-				<p class="brand-copy">ပိုမိုကောင်းမွန်သော ဝန်ဆောင်မှုများပေးနိုင်ရန် စနစ်အား အဆင့်မြှင့်တင်နေပါသည်။</p>
+				<p class="brand-copy">ဝန်ဆောင်မှုနှင့် ဆက်သွယ်ရာတွင် အချိန်ကြာနေပါသည်။ ခဏစောင့်ပြီး ပြန်လည်စမ်းသပ်နိုင်ပါသည်။</p>
 			</div>
 			<div class="brand-footer">Parliament Digital Portal</div>
 		</section>
@@ -339,17 +339,18 @@
 			<div class="status-content">
 				<div class="status-icon" aria-hidden="true">
 					<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-						<path d="M8 38h32M12 19h24M15 19v15M24 19v15M33 19v15M9 15l15-8 15 8H9Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+						<circle cx="24" cy="24" r="17" stroke="currentColor" stroke-width="2.5"/>
+						<path d="M24 13v12l8 5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
 					</svg>
 				</div>
-				<p class="eyebrow">Scheduled maintenance</p>
-				<h1 id="maintenance-title">စနစ်အား ခေတ္တပြုပြင်နေပါသည်</h1>
+				<p class="eyebrow">Connection timed out</p>
+				<h1 id="timeout-title">ဝန်ဆောင်မှု တုံ့ပြန်ရန် ကြာနေပါသည်</h1>
 				<p class="description">
-					ခဏစောင့်ပြီးနောက် Page ကို ပြန်လည်ဖွင့်ကြည့်ပေးပါ။ လုပ်ငန်းများပြီးဆုံးသည်နှင့် ဝန်ဆောင်မှုကို ပုံမှန်အတိုင်း ပြန်လည်အသုံးပြုနိုင်ပါမည်။
+					ဆာဗာမှ အချိန်မီ တုံ့ပြန်မှု မရရှိသေးပါ။ ခဏစောင့်ပြီးနောက် Page ကို ပြန်လည်ဖွင့်ကြည့်ပေးပါ။
 				</p>
 				<div class="action-row">
 					<button class="retry-button" type="button" onclick="window.location.reload()">ပြန်လည်စမ်းသပ်မည်</button>
-					<span class="status-code">Service temporarily unavailable · 503</span>
+					<span class="status-code">Gateway timeout · 504</span>
 				</div>
 			</div>
 		</section>
