@@ -61,7 +61,7 @@ version နှင့် Backup ကို သေချာရွေးချယ်
 မတော်တဆပြန်ဖွင့်မိခြင်းမှ ကာကွယ်ပေးသည်။ ယုံကြည်ရသော Automation အတွက်
 ပြောင်းလဲမှုလုပ်သည့် command များတွင် `--yes` ထည့်နိုင်သည်။
 
-### Branded Maintenance and Timeout Pages
+### Branded Gateway, Maintenance, and Timeout Pages
 
 Maintenance Mode ဖွင့်ထားစဉ် Frappe backend ကပြန်ပေးသော HTTP `503` response ကို
 Frontend Nginx ကဖမ်းယူပြီး `nginx/maintenance.html` ကိုပြသသည်။ Page သည်
@@ -76,16 +76,22 @@ Design သို့မဟုတ် message ပြင်ရန် အောက်
 ```text
 nginx/maintenance.html
 nginx/timeout.html
+nginx/bad-gateway.html
 ```
+
+Frontend Nginx က Frappe backend နှင့် ဆက်သွယ်မရသောအခါ HTTP `502` အတွက်
+`nginx/bad-gateway.html` ကိုပြသည်။ Page သည် ပြဿနာကို generic message ဖြင့်
+ဖော်ပြပြီး ပြန်စမ်းရန် button ပါသည်။ HTTP status ကို `502 Bad Gateway`
+အတိုင်းထိန်းထားပြီး cache မလုပ်စေရန် header ထည့်ထားသည်။
 
 Frontend Nginx က backend response ကို အချိန်မီ မရသောအခါ HTTP `504` အတွက်
 `nginx/timeout.html` ကိုပြသည်။ Page သည် maintenance ဟု မဖော်ပြဘဲ
 ဆက်သွယ်မှု အချိန်ကျော်သွားကြောင်း ပြပြီး ပြန်စမ်းရန် button ပါသည်။
 HTTP status ကို `504 Gateway Timeout` အတိုင်းထိန်းထားပြီး cache မလုပ်စေရန်
 header ထည့်ထားသည်။
-အပြင်ဘက် Reverse Proxy က အရင် timeout ဖြစ်၍ `504` ထုတ်ပါက ထို Proxy ၏
-error page ကိုသာမြင်ရမည်။ ဤ page သည် Frappe Frontend Nginx က ထုတ်သော
-`504` အတွက်ဖြစ်သည်။ Compose mount အသစ်ဖြစ်သဖြင့် deploy လုပ်ရာတွင် Frontend
+အပြင်ဘက် Reverse Proxy က `502` သို့မဟုတ် `504` ကို အရင်ထုတ်ပါက ထို Proxy ၏
+error page ကိုသာမြင်ရမည်။ ဤ pages သည် Frappe Frontend Nginx က ထုတ်သော
+error များအတွက်ဖြစ်သည်။ Compose mount အသစ်ဖြစ်သဖြင့် deploy လုပ်ရာတွင် Frontend
 container ကို recreate လုပ်ရန်လိုသည်။
 
 Maintenance page ကိုစစ်ရန်:
@@ -99,8 +105,10 @@ curl -I http://127.0.0.1:YOUR_FRAPPE_PORT/
 `YOUR_FRAPPE_PORT` နေရာတွင် `.env` ထဲရှိ `FRAPPE_PORT` value ကိုထည့်ပါ။ `curl`
 output တွင် `503 Service Unavailable`, `Retry-After: 60` နှင့်
 `Cache-Control: no-store, no-cache, must-revalidate` ပါရှိရမည်။ Planned
-Maintenance အတွက် `503`၊ backend timeout အတွက် `504` ကို သီးခြား page ဖြင့်
-ပြထားသည်။ `502` သည် မူလ Nginx response အတိုင်းရှိသည်။
+Maintenance အတွက် `503`၊ backend connection failure အတွက် `502`၊ backend
+timeout အတွက် `504` ကို သီးခြား page ဖြင့်ပြထားသည်။ `setup.sh` စတင်ချိန်
+Frontend container မတက်သေးပါက Browser က `ERR_CONNECTION_REFUSED` ကိုသာ
+ပြမည်။ ထိုအခြေအနေကို ဤ `502` page ဖြင့် မဖုံးနိုင်ပါ။
 
 ## ဘယ် Script ကို ဘယ်အချိန်သုံးရမလဲ
 

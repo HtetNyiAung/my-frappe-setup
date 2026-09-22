@@ -16,6 +16,7 @@ server {
 	listen 8080;
 	server_name ${FRAPPE_SITE_NAME_HEADER};
 	root /home/frappe/frappe-bench/sites;
+	error_page 502 /bad-gateway.html;
 	error_page 503 /maintenance.html;
 	error_page 504 /timeout.html;
 
@@ -90,6 +91,12 @@ server {
 		root /usr/share/nginx/html;
 		add_header Cache-Control "no-store, no-cache, must-revalidate" always;
 		add_header Retry-After "60" always;
+	}
+
+	location = /bad-gateway.html {
+		internal;
+		root /usr/share/nginx/html;
+		add_header Cache-Control "no-store, no-cache, must-revalidate" always;
 	}
 
 	location = /timeout.html {
