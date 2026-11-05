@@ -225,6 +225,63 @@ docker compose -f docker-compose.keycloak.yml logs keycloak --tail 30
 ./restore.sh
 ```
 
+#### Automated daily backup with cron
+
+Run and verify one non-interactive backup before adding the schedule. Replace
+`/absolute/path/to/my-frappe-setup` with the actual absolute project path on
+the server.
+
+```bash
+cd /absolute/path/to/my-frappe-setup/docker-setup
+chmod +x backup.sh
+./backup.sh --yes
+```
+
+Set the local and container retention values in `docker-setup/.env` as needed:
+
+```env
+BACKUP_RETENTION_DAYS=14
+CONTAINER_BACKUP_KEEP_COUNT=3
+```
+
+Check the server timezone before choosing the cron schedule:
+
+```bash
+timedatectl
+date
+```
+
+Edit the current user's crontab:
+
+```bash
+crontab -e
+```
+
+The following example runs daily at `19:30` in the server timezone. On a UTC
+server, that is `02:00` Myanmar time on the following day. If the server itself
+uses Myanmar time, use `0 2 * * *` instead.
+
+```cron
+30 19 * * * /absolute/path/to/my-frappe-setup/docker-setup/backup.sh --yes >> /absolute/path/to/my-frappe-setup/docker-setup/backups/cron-backup.log 2>&1
+```
+
+Use an absolute path because cron does not start in the project directory. The
+cron user must be able to run Docker and access `docker-setup/.env` and the
+backup directory. The `--yes` flag is required because cron cannot answer the
+script's interactive confirmation.
+
+Verify the installed entry and review the backup log:
+
+```bash
+crontab -l
+tail -f /absolute/path/to/my-frappe-setup/docker-setup/backups/cron-backup.log
+```
+
+Confirm that the new timestamped backup directory contains non-empty database,
+public-files, private-files, and site-configuration backup files. For timezone,
+retention, offsite backup, restore testing, and troubleshooting details, see the
+[Backup Automation Guide](docker-setup/docs/operations/backup-automation-guide.md).
+
 ### 🔧 Bench Console & Shell
 
 ```bash

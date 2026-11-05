@@ -89,6 +89,7 @@
 		}
 
 		.logo-frame {
+			position: relative;
 			width: 92px;
 			height: 92px;
 			margin-bottom: 28px;
@@ -101,9 +102,17 @@
 		}
 
 		.logo-frame img {
+			position: absolute;
 			width: 76px;
 			height: 66px;
 			object-fit: contain;
+			background: #fff;
+		}
+
+		.logo-frame svg {
+			width: 50px;
+			height: 50px;
+			color: #1457c7;
 		}
 
 		.brand-title {
@@ -314,7 +323,10 @@
 		<section class="brand-panel" aria-label="Digital Portal">
 			<div class="brand-content">
 				<div class="logo-frame">
-					<img src="/assets/parliament_bills/images/logo-mm.png" alt="Pyidaungsu Hluttaw logo">
+					<svg viewBox="0 0 48 48" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+						<path d="M8 38h32M12 19h24M15 19v15M24 19v15M33 19v15M9 15l15-8 15 8H9Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+					<img src="/assets/parliament_bills/images/logo-mm.png" alt="Pyidaungsu Hluttaw logo" onerror="this.remove()">
 				</div>
 				<p class="brand-title">Digital Portal</p>
 				<div class="brand-line" aria-hidden="true"></div>
